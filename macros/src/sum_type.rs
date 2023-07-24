@@ -8,6 +8,7 @@ struct Attrs {
     add_is: bool,
     add_as: bool,
     add_into: bool,
+    ignore: bool,
 }
 impl Attrs {
     fn from_syn(attrs: &Attribute) -> syn::Result<Self> {
@@ -19,6 +20,8 @@ impl Attrs {
                 me.add_into = true;
             } else if meta.path.is_ident("is") {
                 me.add_is = true;
+            } else if meta.path.is_ident("ignore") {
+                me.ignore = true;
             } else {
                 return Err(meta.error("invalid argument"));
             }
@@ -47,6 +50,7 @@ pub fn derive_sum_type(input: DeriveInput) -> TokenStream {
         add_as: true,
         add_into: true,
         add_is: true,
+        ignore: false,
     }));
     if let Err(e) = attrs {
         return e.to_compile_error();
@@ -56,12 +60,15 @@ pub fn derive_sum_type(input: DeriveInput) -> TokenStream {
     let mut variants = Vec::new();
     let mut variant_tys = Vec::new();
     for variant in &data.variants {
-        variant_names.push(variant.ident.clone());
         let attrs = Attrs::from_attrs(&variant.attrs).unwrap_or(Ok(attrs.clone()));
         if let Err(e) = attrs {
             return e.to_compile_error();
         }
         let attrs = attrs.unwrap();
+        if attrs.ignore {
+            continue;
+        }
+        variant_names.push(variant.ident.clone());
         variants.push((attrs, variant.ident.clone()));
         let Fields::Unnamed(f) = &variant.fields else {
             return syn::Error::new_spanned(variant, "must be single variant").to_compile_error();
