@@ -1,7 +1,7 @@
 use convert_case::{Case, Casing};
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
-use syn::{parse_macro_input, DeriveInput, Fields};
+use syn::{DeriveInput, Fields};
 
 pub fn derive_sum_type(input: DeriveInput) -> TokenStream {
     let syn::Data::Enum(data) = &input.data else {
@@ -24,7 +24,7 @@ pub fn derive_sum_type(input: DeriveInput) -> TokenStream {
     }
     let kind_structs = variant_names
         .iter()
-        .map(|v| Ident::new(&format!("{}Kind", v), Span::call_site()))
+        .map(|v| Ident::new(&format!("{}{}Kind", input_ident, v), Span::call_site()))
         .collect::<Vec<_>>();
     let lowercase_names = variant_names
         .iter()
@@ -48,6 +48,7 @@ pub fn derive_sum_type(input: DeriveInput) -> TokenStream {
             #[derive(Default, PartialEq, Eq, Hash, Clone, Copy, Debug, PartialOrd, Ord)]
             #vis struct #kind_structs {}
         )*
+        #[automatically_derived]
         impl #input_ident {
             #(
                 #vis fn #as_names (&self) -> Option<&#variant_tys> {
@@ -72,6 +73,7 @@ pub fn derive_sum_type(input: DeriveInput) -> TokenStream {
                 }
             )*
         }
+        #[automatically_derived]
         impl SumType for #input_ident {
             type Kind = #kinds_ident;
         }

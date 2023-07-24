@@ -60,6 +60,7 @@ impl KindFor<MySum> for MySumKindInt {
 }
 
 #[derive(SumType)]
+#[sumtype(into, as, is)]
 enum MySumDerive {
     Int(i64),
     Float(f64),
