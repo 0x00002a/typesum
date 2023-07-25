@@ -114,6 +114,7 @@ pub fn derive_sum_type(input: DeriveInput) -> TokenStream {
     let is_names = gen_names(&lowercase_names, "is", |a| a.add_is);
     let mut_as_names = gen_names(&lowercase_names, "as_mut", |a| a.add_mut_as);
 
+    let tys = input.generics;
     quote! {
         #vis enum #kinds_ident {
             #(#variant_names (#kind_structs)),*
@@ -123,7 +124,7 @@ pub fn derive_sum_type(input: DeriveInput) -> TokenStream {
             #vis struct #kind_structs {}
         )*
         #[automatically_derived]
-        impl #input_ident {
+        impl #tys #input_ident #tys {
             #(
                 #vis fn #as_names (&self) -> Option<&#variant_tys> {
                     match self {
@@ -154,7 +155,7 @@ pub fn derive_sum_type(input: DeriveInput) -> TokenStream {
             )*
         }
         #[automatically_derived]
-        impl SumType for #input_ident {
+        impl #tys SumType for #input_ident #tys {
             type Kind = #kinds_ident;
         }
     }
