@@ -46,7 +46,8 @@ define_attrs!(Attrs {
     (add_as, as),
     (add_into, into),
     (add_is, is),
-    (ignore, ignore)
+    (ignore, ignore),
+    (add_mut_as, mut_as)
 });
 
 pub fn derive_sum_type(input: DeriveInput) -> TokenStream {
@@ -61,6 +62,7 @@ pub fn derive_sum_type(input: DeriveInput) -> TokenStream {
         add_into: true,
         add_is: true,
         ignore: false,
+        add_mut_as: true,
     }));
     if let Err(e) = attrs {
         return e.to_compile_error();
@@ -110,6 +112,7 @@ pub fn derive_sum_type(input: DeriveInput) -> TokenStream {
     let as_names = gen_names(&lowercase_names, "as", |a| a.add_as);
     let into_names = gen_names(&lowercase_names, "into", |a| a.add_into);
     let is_names = gen_names(&lowercase_names, "is", |a| a.add_is);
+    let mut_as_names = gen_names(&lowercase_names, "as_mut", |a| a.add_mut_as);
 
     quote! {
         #vis enum #kinds_ident {
@@ -140,6 +143,12 @@ pub fn derive_sum_type(input: DeriveInput) -> TokenStream {
                     match self {
                         Self::#variant_names (v) => true,
                         _ => false,
+                    }
+                }
+                #vis fn #mut_as_names (&mut self) -> Option<&mut #variant_tys> {
+                    match self {
+                        Self::#variant_names (v) => Some(v),
+                        _ => None,
                     }
                 }
             )*
