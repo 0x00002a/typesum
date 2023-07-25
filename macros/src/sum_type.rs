@@ -5,47 +5,49 @@ use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
 use syn::{meta::ParseNestedMeta, Attribute, DeriveInput, Fields};
 
-#[derive(Default, Debug, Clone, Copy)]
-struct Attrs {
-    add_is: bool,
-    add_as: bool,
-    add_into: bool,
-    ignore: bool,
-}
+macro_rules! define_attrs {
+    ($name:ident { $(($ops:ident, $opname:ident)),* }) => {
+        #[derive(Default, Debug, Clone, Copy)]
+        struct $name {
+            $($ops : bool),*
+        }
+        impl $name {
+            fn from_syn(attrs: &Attribute) -> syn::Result<Self> {
+                let mut me = Self::default();
+                attrs.parse_nested_meta(|meta| {
+                    let value = if let Ok(v) = meta.value() {
+                        v.parse::<syn::LitBool>()?.value
+                    } else {
+                        true
+                    };
+                    if false {
 
-impl Attrs {
-    fn from_syn(attrs: &Attribute) -> syn::Result<Self> {
-        let mut me = Attrs::default();
-        attrs.parse_nested_meta(|meta| {
-            let value = if let Ok(v) = meta.value() {
-                v.parse::<syn::LitBool>()?.value
-            } else {
-                true
-            };
-            if meta.path.is_ident("as") {
-                me.add_as = value;
-            } else if meta.path.is_ident("into") {
-                me.add_into = value;
-            } else if meta.path.is_ident("is") {
-                me.add_is = value;
-            } else if meta.path.is_ident("ignore") {
-                me.ignore = value;
-            } else {
-                return Err(meta.error("invalid argument"));
+                    } $( else if meta.path.is_ident(stringify!($opname)) { me.$ops = value; } )*
+                    else {
+                        return Err(meta.error("invalid argument"));
+                    }
+                    Ok(())
+                })?;
+                Ok(me)
             }
-            Ok(())
-        })?;
-        Ok(me)
-    }
-    fn from_attrs(attrs: &[Attribute]) -> Option<syn::Result<Self>> {
-        for attr in attrs {
-            if attr.path().is_ident("sumtype") {
-                return Some(Self::from_syn(attr));
+            fn from_attrs(attrs: &[Attribute]) -> Option<syn::Result<Self>> {
+                for attr in attrs {
+                    if attr.path().is_ident("sumtype") {
+                        return Some(Self::from_syn(attr));
+                    }
+                }
+                None
             }
         }
-        None
-    }
+    };
 }
+
+define_attrs!(Attrs {
+    (add_as, as),
+    (add_into, into),
+    (add_is, is),
+    (ignore, ignore)
+});
 
 pub fn derive_sum_type(input: DeriveInput) -> TokenStream {
     let syn::Data::Enum(data) = &input.data else {
