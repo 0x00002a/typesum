@@ -46,7 +46,8 @@ define_attrs!(Attrs {
     (add_is, is),
     (ignore, ignore),
     (add_mut_as, mut_as),
-    (add_try_into, try_into)
+    (add_try_into, try_into),
+    (add_try_into_impl, impl_try_into)
 });
 
 pub fn derive_sum_type(input: DeriveInput) -> TokenStream {
@@ -63,6 +64,7 @@ pub fn derive_sum_type(input: DeriveInput) -> TokenStream {
         ignore: false,
         add_mut_as: true,
         add_try_into: input.generics.type_params().next().is_none(),
+        add_try_into_impl: false,
     }
     .add_scope(&input.attrs);
     if let Err(e) = attrs {
@@ -99,25 +101,128 @@ pub fn derive_sum_type(input: DeriveInput) -> TokenStream {
         .iter()
         .map(|(a, v)| (a.clone(), v.to_string().to_case(Case::Snake)))
         .collect::<Vec<_>>();
-    fn gen_names(
-        names: &[(Attrs, impl std::fmt::Display)],
+    fn gen_names<'a, 'b, A: 'a, B: 'a, C: 'a, R>(
+        names: impl Iterator<Item = &'a (&'a (C, impl std::fmt::Display + 'a), (&'a A, &'a B))> + 'b,
         prefix: &str,
-        filter: impl Fn(&Attrs) -> bool,
-    ) -> Vec<syn::Ident> {
-        names
-            .iter()
-            .filter(|(a, _)| filter(a))
-            .map(|(_, n)| Ident::new(&format!("{}_{}", prefix, n), Span::call_site()))
-            .collect::<Vec<_>>()
+        filter: impl Fn(&C) -> bool,
+        generate: impl FnOnce(&[&A], &[&B], &[Ident]) -> R,
+    ) -> R
+    where
+        'b: 'a,
+    {
+        let (as_, bs, is) = names
+            .filter(|((a, _), _)| filter(a))
+            .map(|((_, n), (a, b))| {
+                (
+                    a,
+                    b,
+                    Ident::new(&format!("{}_{}", prefix, n), Span::call_site()),
+                )
+            })
+            .fold(
+                (Vec::new(), Vec::new(), Vec::new()),
+                |(mut as_, mut bs, mut is), (a, b, i)| {
+                    as_.push(*a);
+                    bs.push(*b);
+                    is.push(i);
+                    (as_, bs, is)
+                },
+            );
+        generate(as_.as_slice(), bs.as_slice(), is.as_slice())
     }
-    let as_names = gen_names(&lowercase_names, "as", |a| a.add_as);
-    let into_names = gen_names(&lowercase_names, "into", |a| a.add_into);
-    let is_names = gen_names(&lowercase_names, "is", |a| a.add_is);
-    let mut_as_names = gen_names(&lowercase_names, "as_mut", |a| a.add_mut_as);
+    let variants_zipped = lowercase_names
+        .iter()
+        .zip(variant_names.iter().zip(variant_tys.iter()))
+        .collect::<Vec<_>>();
+    let as_names = gen_names(
+        variants_zipped.iter(),
+        "as",
+        |a| a.add_as,
+        |variants, tys, names| {
+            quote! {
+                #(
+                    #vis fn #names (&self) -> Option<&#tys> {
+                        match self {
+                            Self::#variants (v) => Some(v),
+                            _ => None,
+                        }
+                    }
+                )*
+            }
+        },
+    );
+    let into_names = gen_names(
+        variants_zipped.iter(),
+        "into",
+        |a| a.add_into,
+        |variants, tys, names| {
+            quote! {
+                #(
+                    #vis fn #names (self) -> Option<#tys> {
+                        match self {
+                            Self::#variants (v) => Some(v),
+                            _ => None,
+                        }
+                    }
+                )*
+            }
+        },
+    );
+    let is_names = gen_names(
+        variants_zipped.iter(),
+        "is",
+        |a| a.add_is,
+        |variants, _, names| {
+            quote! {
+                #(
+                    #vis fn #names (&self) -> bool {
+                        match self {
+                            Self::#variants (v) => true,
+                            _ => false,
+                        }
+                    }
+                )*
+            }
+        },
+    );
+    let mut_as_names = gen_names(
+        variants_zipped.iter(),
+        "as_mut",
+        |a| a.add_mut_as,
+        |variants, tys, names| {
+            quote! {
+                #(
+                    #vis fn #names (&mut self) -> Option<&mut #tys> {
+                        match self {
+                            Self::#variants (v) => Some(v),
+                            _ => None,
+                        }
+                    }
+                )*
+            }
+        },
+    );
+    let try_into_names = gen_names(
+        variants_zipped.iter(),
+        "try_into",
+        |a| a.add_try_into,
+        |variants, tys, names| {
+            quote! {
+                #(
+                    #vis fn #names (self) -> Result<#tys, ::typesum::TryIntoError> {
+                        match self {
+                            Self::#variants (v) => Ok(v),
+                            _ => Err(::typesum::TryIntoError::new(stringify!(#input_ident), stringify!(#tys))),
+                        }
+                    }
+                )*
+            }
+        },
+    );
     let try_intos = variants
         .iter()
         .zip(variant_tys.iter())
-        .filter(|((a, _), _)| a.add_try_into)
+        .filter(|((a, _), _)| a.add_try_into_impl)
         .map(|((_, v), ty)| (ty, v))
         .collect::<Vec<_>>();
     let try_intos_idents = try_intos.iter().map(|(_, r)| r).collect::<Vec<_>>();
@@ -146,39 +251,11 @@ pub fn derive_sum_type(input: DeriveInput) -> TokenStream {
         )*
         #[automatically_derived]
         impl #tys #input_ident #tys {
-            #(
-                #vis fn #as_names (&self) -> Option<&#variant_tys> {
-                    match self {
-                        Self::#variant_names (v) => Some(v),
-                        _ => None,
-                    }
-                }
-            )*
-            #(
-                #vis fn #into_names (self) -> Option<#variant_tys> {
-                    match self {
-                        Self::#variant_names (v) => Some(v),
-                        _ => None,
-                    }
-                }
-
-            )*
-            #(
-                #vis fn #is_names (&self) -> bool {
-                    match self {
-                        Self::#variant_names (v) => true,
-                        _ => false,
-                    }
-                }
-            )*
-            #(
-                #vis fn #mut_as_names (&mut self) -> Option<&mut #variant_tys> {
-                    match self {
-                        Self::#variant_names (v) => Some(v),
-                        _ => None,
-                    }
-                }
-            )*
+            #try_into_names
+            #mut_as_names
+            #as_names
+            #into_names
+            #is_names
         }
         #[automatically_derived]
         impl #tys SumType for #input_ident #tys {
