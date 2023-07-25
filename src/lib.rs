@@ -2,7 +2,22 @@
 pub use macros::SumType;
 
 extern crate self as typesum;
+/// Error type for TryInto impl's on derived sumtypes
 ///
+///
+/// ```
+/// use typesum::{SumType, TryIntoError};
+/// #[derive(SumType)]
+/// enum MySum {
+///     I(i64),
+///     B(bool),
+/// }
+/// let v = MySum::B(true);
+/// let r: Result<i64, _> = v.try_into();
+/// assert_eq!(r, Err(TryIntoError::new("MySum", "i64")));
+///
+/// ```
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
 pub struct TryIntoError {
     from: &'static str,
     to: &'static str,
@@ -17,6 +32,14 @@ impl TryIntoError {
     }
     pub fn to(&self) -> &'static str {
         self.to
+    }
+}
+impl std::fmt::Display for TryIntoError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!(
+            "failed to convert from sumtype '{}' to type '{}'",
+            self.from, self.to
+        ))
     }
 }
 
