@@ -1,4 +1,24 @@
-use macros::SumType;
+#![doc = include_str!("../docs/README.md")]
+pub use macros::SumType;
+
+extern crate self as typesum;
+///
+pub struct TryIntoError {
+    from: &'static str,
+    to: &'static str,
+}
+impl TryIntoError {
+    pub fn new(from: &'static str, to: &'static str) -> Self {
+        Self { from, to }
+    }
+
+    pub fn from(&self) -> &'static str {
+        self.from
+    }
+    pub fn to(&self) -> &'static str {
+        self.to
+    }
+}
 
 pub trait SumType {
     type Kind;
@@ -59,12 +79,44 @@ impl KindFor<MySum> for MySumKindInt {
     }
 }
 
-#[derive(SumType)]
-enum MySumDerive {
-    Int(i64),
-    Float(f64),
-    String(String),
-    Bool(bool),
-    #[sumtype(ignore)]
-    Not,
+#[cfg(test)]
+mod tests {
+    use crate::{MySum, SumType, TryIntoError};
+
+    #[derive(SumType)]
+    enum MySumDerive {
+        #[sumtype(is = false)]
+        Int(i64),
+        #[sumtype(mut_as = false)]
+        Float(f64),
+        String(String),
+        Bool(bool),
+        #[sumtype(ignore)]
+        Not,
+    }
+
+    #[derive(SumType)]
+    enum MySumDeriveTyped<T> {
+        A(T),
+    }
+
+    #[derive(SumType)]
+    enum MySumDeriveLifetimed<'a> {
+        A(&'a i32),
+    }
+
+    #[test]
+    fn test_derive_typed() {
+        fn assert_typed<T>(val: &MySumDeriveTyped<T>) -> &T {
+            val.as_a().unwrap()
+        }
+        assert_typed(&MySumDeriveTyped::A(6));
+    }
+    #[test]
+    fn test_lifetime_deser() {
+        fn assert_lifetime(val: MySumDeriveLifetimed<'_>) -> &i32 {
+            val.as_a().unwrap()
+        }
+        assert_lifetime(MySumDeriveLifetimed::A(&5));
+    }
 }

@@ -2,9 +2,8 @@ use std::ops::Not;
 
 use convert_case::{Case, Casing};
 use proc_macro2::{Ident, Span, TokenStream};
-use quote::quote;
+use quote::{format_ident, quote};
 use syn::{meta::ParseNestedMeta, Attribute, DeriveInput, Fields};
-
 macro_rules! define_attrs {
     ($name:ident { $(($ops:ident, $opname:ident)),* }) => {
         #[derive(Default, Debug, Clone, Copy)]
@@ -12,8 +11,8 @@ macro_rules! define_attrs {
             $($ops : bool),*
         }
         impl $name {
-            fn from_syn(attrs: &Attribute) -> syn::Result<Self> {
-                let mut me = Self::default();
+            fn add_syn(self, attrs: &Attribute) -> syn::Result<Self> {
+                let mut me = self;
                 attrs.parse_nested_meta(|meta| {
                     let value = if let Ok(v) = meta.value() {
                         v.parse::<syn::LitBool>()?.value
@@ -21,7 +20,6 @@ macro_rules! define_attrs {
                         true
                     };
                     if false {
-
                     } $( else if meta.path.is_ident(stringify!($opname)) { me.$ops = value; } )*
                     else {
                         return Err(meta.error("invalid argument"));
@@ -30,13 +28,13 @@ macro_rules! define_attrs {
                 })?;
                 Ok(me)
             }
-            fn from_attrs(attrs: &[Attribute]) -> Option<syn::Result<Self>> {
+            fn add_scope(self, attrs: &[Attribute]) -> syn::Result<Self> {
                 for attr in attrs {
                     if attr.path().is_ident("sumtype") {
-                        return Some(Self::from_syn(attr));
+                        return self.add_syn(attr);
                     }
                 }
-                None
+                Ok(self)
             }
         }
     };
@@ -47,7 +45,8 @@ define_attrs!(Attrs {
     (add_into, into),
     (add_is, is),
     (ignore, ignore),
-    (add_mut_as, mut_as)
+    (add_mut_as, mut_as),
+    (add_try_into, try_into)
 });
 
 pub fn derive_sum_type(input: DeriveInput) -> TokenStream {
@@ -57,13 +56,15 @@ pub fn derive_sum_type(input: DeriveInput) -> TokenStream {
     let kinds_ident = Ident::new(&format!("{}Kind", input.ident), Span::call_site());
     let input_ident = &input.ident;
     let vis = &input.vis;
-    let attrs = Attrs::from_attrs(&input.attrs).unwrap_or(Ok(Attrs {
+    let attrs = Attrs {
         add_as: true,
         add_into: true,
         add_is: true,
         ignore: false,
         add_mut_as: true,
-    }));
+        add_try_into: input.generics.type_params().next().is_none(),
+    }
+    .add_scope(&input.attrs);
     if let Err(e) = attrs {
         return e.to_compile_error();
     }
@@ -72,7 +73,7 @@ pub fn derive_sum_type(input: DeriveInput) -> TokenStream {
     let mut variants = Vec::new();
     let mut variant_tys = Vec::new();
     for variant in &data.variants {
-        let attrs = Attrs::from_attrs(&variant.attrs).unwrap_or(Ok(attrs.clone()));
+        let attrs = attrs.add_scope(&variant.attrs);
         if let Err(e) = attrs {
             return e.to_compile_error();
         }
@@ -113,6 +114,14 @@ pub fn derive_sum_type(input: DeriveInput) -> TokenStream {
     let into_names = gen_names(&lowercase_names, "into", |a| a.add_into);
     let is_names = gen_names(&lowercase_names, "is", |a| a.add_is);
     let mut_as_names = gen_names(&lowercase_names, "as_mut", |a| a.add_mut_as);
+    let try_intos = variants
+        .iter()
+        .zip(variant_tys.iter())
+        .filter(|((a, _), _)| a.add_try_into)
+        .map(|((_, v), ty)| (ty, v))
+        .collect::<Vec<_>>();
+    let try_intos_idents = try_intos.iter().map(|(_, r)| r).collect::<Vec<_>>();
+    let try_intos_tys = try_intos.iter().map(|(t, _)| t);
 
     let tys = input.generics;
     quote! {
@@ -123,6 +132,18 @@ pub fn derive_sum_type(input: DeriveInput) -> TokenStream {
             #[derive(Default, PartialEq, Eq, Hash, Clone, Copy, Debug, PartialOrd, Ord)]
             #vis struct #kind_structs {}
         )*
+        #(
+            #[automatically_derived]
+            impl #tys TryInto<#try_intos_tys> for #input_ident #tys {
+                type Error = ::typesum::TryIntoError;
+                fn try_into(self) -> Result<#try_intos_tys, Self::Error> {
+                    match self {
+                        Self:: #try_intos_idents (v) => Ok(v),
+                        _ => Err(::typesum::TryIntoError::new(stringify!(#input_ident), stringify!(#try_intos_tys))),
+                    }
+                }
+            }
+        )*
         #[automatically_derived]
         impl #tys #input_ident #tys {
             #(
@@ -132,7 +153,8 @@ pub fn derive_sum_type(input: DeriveInput) -> TokenStream {
                         _ => None,
                     }
                 }
-
+            )*
+            #(
                 #vis fn #into_names (self) -> Option<#variant_tys> {
                     match self {
                         Self::#variant_names (v) => Some(v),
@@ -140,12 +162,16 @@ pub fn derive_sum_type(input: DeriveInput) -> TokenStream {
                     }
                 }
 
+            )*
+            #(
                 #vis fn #is_names (&self) -> bool {
                     match self {
                         Self::#variant_names (v) => true,
                         _ => false,
                     }
                 }
+            )*
+            #(
                 #vis fn #mut_as_names (&mut self) -> Option<&mut #variant_tys> {
                     match self {
                         Self::#variant_names (v) => Some(v),
