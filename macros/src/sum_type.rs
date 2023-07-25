@@ -1,7 +1,9 @@
+use std::ops::Not;
+
 use convert_case::{Case, Casing};
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
-use syn::{Attribute, DeriveInput, Fields};
+use syn::{meta::ParseNestedMeta, Attribute, DeriveInput, Fields};
 
 #[derive(Default, Debug, Clone, Copy)]
 struct Attrs {
@@ -10,18 +12,24 @@ struct Attrs {
     add_into: bool,
     ignore: bool,
 }
+
 impl Attrs {
     fn from_syn(attrs: &Attribute) -> syn::Result<Self> {
-        let mut me = Self::default();
+        let mut me = Attrs::default();
         attrs.parse_nested_meta(|meta| {
+            let value = if let Ok(v) = meta.value() {
+                v.parse::<syn::LitBool>()?.value
+            } else {
+                true
+            };
             if meta.path.is_ident("as") {
-                me.add_as = true;
+                me.add_as = value;
             } else if meta.path.is_ident("into") {
-                me.add_into = true;
+                me.add_into = value;
             } else if meta.path.is_ident("is") {
-                me.add_is = true;
+                me.add_is = value;
             } else if meta.path.is_ident("ignore") {
-                me.ignore = true;
+                me.ignore = value;
             } else {
                 return Err(meta.error("invalid argument"));
             }
