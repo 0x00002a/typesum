@@ -2,8 +2,8 @@ use std::ops::Not;
 
 use convert_case::{Case, Casing};
 use proc_macro2::{Ident, Span, TokenStream};
-use quote::{format_ident, quote};
-use syn::{meta::ParseNestedMeta, Attribute, DeriveInput, Fields};
+use quote::quote;
+use syn::{Attribute, DeriveInput, Fields};
 macro_rules! define_attrs {
     ($name:ident { $(($ops:ident, $opname:ident)),* }) => {
         #[derive(Default, Debug, Clone, Copy)]
@@ -47,8 +47,46 @@ define_attrs!(Attrs {
     (ignore, ignore),
     (add_mut_as, mut_as),
     (add_try_into, try_into),
-    (add_try_into_impl, impl_try_into)
+    (add_try_into_impl, impl_try_into),
+    (add_try_as, try_as),
+    (add_try_as_mut, try_as_mut)
 });
+fn generate_conv_option<'a>(
+    vis: &'a syn::Visibility,
+    prefix: Option<TokenStream>,
+) -> impl FnOnce(&[&Ident], &[&syn::Type], &[Ident]) -> TokenStream + 'a {
+    move |variants: &[&Ident], tys: &[&syn::Type], names: &[Ident]| {
+        quote! {
+            #(
+                #vis fn #names (#prefix self) -> Option<#prefix #tys> {
+                    match self {
+                        Self::#variants (v) => Some(v),
+                        _ => None,
+                    }
+                }
+            )*
+        }
+    }
+}
+
+fn generate_conv_try<'a>(
+    vis: &'a syn::Visibility,
+    input_ident: &'a Ident,
+    prefix: Option<TokenStream>,
+) -> impl FnOnce(&[&Ident], &[&syn::Type], &[Ident]) -> TokenStream + 'a {
+    move |variants, tys, names| {
+        quote! {
+            #(
+                #vis fn #names (#prefix self) -> Result<#prefix #tys, ::typesum::TryIntoError> {
+                    match self {
+                        Self::#variants (v) => Ok(v),
+                        _ => Err(::typesum::TryIntoError::new(stringify!(#input_ident), stringify!(#tys))),
+                    }
+                }
+            )*
+        }
+    }
+}
 
 pub fn derive_sum_type(input: DeriveInput) -> TokenStream {
     let syn::Data::Enum(data) = &input.data else {
@@ -65,6 +103,8 @@ pub fn derive_sum_type(input: DeriveInput) -> TokenStream {
         add_mut_as: true,
         add_try_into: input.generics.type_params().next().is_none(),
         add_try_into_impl: false,
+        add_try_as: true,
+        add_try_as_mut: true,
     }
     .add_scope(&input.attrs);
     if let Err(e) = attrs {
@@ -138,35 +178,13 @@ pub fn derive_sum_type(input: DeriveInput) -> TokenStream {
         variants_zipped.iter(),
         "as",
         |a| a.add_as,
-        |variants, tys, names| {
-            quote! {
-                #(
-                    #vis fn #names (&self) -> Option<&#tys> {
-                        match self {
-                            Self::#variants (v) => Some(v),
-                            _ => None,
-                        }
-                    }
-                )*
-            }
-        },
+        generate_conv_option(vis, Some(quote! { & })),
     );
     let into_names = gen_names(
         variants_zipped.iter(),
         "into",
         |a| a.add_into,
-        |variants, tys, names| {
-            quote! {
-                #(
-                    #vis fn #names (self) -> Option<#tys> {
-                        match self {
-                            Self::#variants (v) => Some(v),
-                            _ => None,
-                        }
-                    }
-                )*
-            }
-        },
+        generate_conv_option(vis, None),
     );
     let is_names = gen_names(
         variants_zipped.iter(),
@@ -189,35 +207,27 @@ pub fn derive_sum_type(input: DeriveInput) -> TokenStream {
         variants_zipped.iter(),
         "as_mut",
         |a| a.add_mut_as,
-        |variants, tys, names| {
-            quote! {
-                #(
-                    #vis fn #names (&mut self) -> Option<&mut #tys> {
-                        match self {
-                            Self::#variants (v) => Some(v),
-                            _ => None,
-                        }
-                    }
-                )*
-            }
-        },
+        generate_conv_option(vis, Some(quote! { &mut })),
     );
     let try_into_names = gen_names(
         variants_zipped.iter(),
         "try_into",
         |a| a.add_try_into,
-        |variants, tys, names| {
-            quote! {
-                #(
-                    #vis fn #names (self) -> Result<#tys, ::typesum::TryIntoError> {
-                        match self {
-                            Self::#variants (v) => Ok(v),
-                            _ => Err(::typesum::TryIntoError::new(stringify!(#input_ident), stringify!(#tys))),
-                        }
-                    }
-                )*
-            }
-        },
+        generate_conv_try(vis, input_ident, None),
+    );
+
+    let try_as_impls = gen_names(
+        variants_zipped.iter(),
+        "try_as",
+        |a| a.add_try_as,
+        generate_conv_try(vis, input_ident, Some(quote! { & })),
+    );
+
+    let try_as_mut_impls = gen_names(
+        variants_zipped.iter(),
+        "try_as_mut",
+        |a| a.add_try_as,
+        generate_conv_try(vis, input_ident, Some(quote! { &mut })),
     );
     let try_intos = variants
         .iter()
@@ -256,6 +266,8 @@ pub fn derive_sum_type(input: DeriveInput) -> TokenStream {
             #as_names
             #into_names
             #is_names
+            #try_as_impls
+            #try_as_mut_impls
         }
         #[automatically_derived]
         impl #tys SumType for #input_ident #tys {
