@@ -110,7 +110,7 @@ impl KindFor<MySum> for MySumKindInt {
         matches!(target, MySum::Int(_))
     }
 }
-#[derive(SumType)]
+#[sumtype]
 enum MySumDerive {
     Int(i64),
     Float(f64),
@@ -137,12 +137,12 @@ mod tests {
         Not,
     }
 
-    #[derive(SumType)]
+    #[sumtype]
     enum MySumDeriveTyped<T> {
         A(T),
     }
 
-    #[derive(SumType)]
+    #[sumtype]
     enum MySumDeriveLifetimed<'a> {
         A(&'a i32),
     }
