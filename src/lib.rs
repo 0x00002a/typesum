@@ -1,4 +1,11 @@
 #![doc = include_str!("../docs/README.md")]
+
+pub use macros::sumtype;
+/// Derive macro for SumType
+///
+/// You probably want to use this over implementing SumType directly. It does
+/// a bunch of nice things like add `[as_|into_|try_into_|is_]*` implementations
+/// and also TryInto
 pub use macros::SumType;
 
 extern crate self as typesum;
@@ -7,7 +14,7 @@ extern crate self as typesum;
 ///
 /// ```
 /// use typesum::{SumType, TryIntoError};
-/// #[derive(SumType)]
+/// #[sumtype(impl_try_into = true)]
 /// enum MySum {
 ///     I(i64),
 ///     B(bool),
@@ -23,13 +30,15 @@ pub struct TryIntoError {
     to: &'static str,
 }
 impl TryIntoError {
+    /// Create a new `TryIntoError`
     pub fn new(from: &'static str, to: &'static str) -> Self {
         Self { from, to }
     }
-
+    /// Source sumtype
     pub fn from(&self) -> &'static str {
         self.from
     }
+    /// Target type
     pub fn to(&self) -> &'static str {
         self.to
     }
@@ -101,16 +110,26 @@ impl KindFor<MySum> for MySumKindInt {
         matches!(target, MySum::Int(_))
     }
 }
+#[derive(SumType)]
+enum MySumDerive {
+    Int(i64),
+    Float(f64),
+    String(String),
+    Bool(bool),
+    #[sumtype(ignore)]
+    Not,
+}
 
 #[cfg(test)]
 mod tests {
-    use crate::{MySum, SumType, TryIntoError};
+    use crate::sumtype;
+    use crate::{SumType, TryIntoError};
 
-    #[derive(SumType)]
+    #[sumtype]
     enum MySumDerive {
         #[sumtype(is = false)]
         Int(i64),
-        #[sumtype(mut_as = false)]
+        #[sumtype(mut_as = false, try_into = false)]
         Float(f64),
         String(String),
         Bool(bool),
@@ -126,6 +145,14 @@ mod tests {
     #[derive(SumType)]
     enum MySumDeriveLifetimed<'a> {
         A(&'a i32),
+    }
+    #[test]
+    fn my_sum_derive_try_into() {
+        let v = MySumDerive::Int(64);
+        assert_eq!(
+            v.try_into_string(),
+            Err(TryIntoError::new("MySumDerive", "String"))
+        );
     }
 
     #[test]

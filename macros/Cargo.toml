@@ -11,7 +11,7 @@ proc-macro2 = "1.0.66"
 quote = "1.0.32"
 serde = { version = "1.0.175", features = ["derive"] }
 serde_syn = "0.1.0"
-syn = "2.0.27"
+syn = { version = "2.0.27", features = ["full"] }
 thiserror = "1.0.44"
 
 [lib]
