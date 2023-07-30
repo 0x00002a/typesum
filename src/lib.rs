@@ -8,6 +8,33 @@ pub use macros::sumtype;
 /// and also TryInto
 pub use macros::SumType;
 
+/// Generate kinds for enum
+///
+/// ```
+/// use typesum::kinded;
+/// #[kinded]
+/// #[derive(Debug)]
+/// enum MyKinded {
+///     I(i64),
+///     A { expensive_thing: String, also_expensive: Vec<Vec<Vec<Vec<Vec<Vec<Vec<String>>>>>>>, },
+/// }
+/// let my_thing = MyKinded::I(10);
+/// assert_eq!(my_thing.kind(), MyKindedKind::I);
+/// ```
+///
+/// You can also customise the name of the generated enum
+/// ```
+/// use typesum::kinded;
+/// #[kinded(name = "SomeKind")]
+/// #[derive(Debug)]
+/// enum MyKinded {
+///     I(i64),
+/// }
+/// let my_thing = MyKinded::I(10);
+/// assert_eq!(my_thing.kind(), SomeKind::I);
+/// ```
+pub use macros::kinded;
+
 extern crate self as typesum;
 /// Error type for TryInto impl's on derived sumtypes
 ///

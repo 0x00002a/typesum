@@ -1,10 +1,34 @@
 use sum_type::Attrs;
 use syn::{parse_macro_input, Attribute, DeriveInput};
+mod kinded;
 mod sum_type;
+
 #[proc_macro_derive(SumType, attributes(sumtype))]
 pub fn derive_sum_type(tokens: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(tokens as DeriveInput);
     sum_type::derive_sum_type(input).into()
+}
+#[proc_macro_attribute]
+pub fn kinded(
+    attrs_ts: proc_macro::TokenStream,
+    item: proc_macro::TokenStream,
+) -> proc_macro::TokenStream {
+    let mut kind_attrs = kinded::Attrs::default();
+    let parser = syn::meta::parser(|meta| {
+        if meta.path.is_ident("name") {
+            let value: syn::LitStr = meta.value()?.parse()?;
+            kind_attrs.name.replace(value.value());
+        } else {
+            return Err(meta.error("invalid argument"));
+        }
+        Ok(())
+    });
+    parse_macro_input!(attrs_ts with parser);
+    let item = parse_macro_input!(item as syn::ItemEnum);
+    match kinded::kinded_macro(kind_attrs, item) {
+        Ok(v) => v.into(),
+        Err(e) => e.to_compile_error().into(),
+    }
 }
 
 #[proc_macro_attribute]
