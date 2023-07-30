@@ -1,7 +1,6 @@
 use sum_type::Attrs;
 use syn::{parse_macro_input, Attribute, DeriveInput};
 mod sum_type;
-mod types;
 #[proc_macro_derive(SumType, attributes(sumtype))]
 pub fn derive_sum_type(tokens: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(tokens as DeriveInput);
