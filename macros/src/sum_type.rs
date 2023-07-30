@@ -228,15 +228,17 @@ pub fn sumtype_attr(mut attrs: Attrs, input: syn::ItemEnum) -> TokenStream {
             }
         });
 
-    let stripped_variants = variants
-        .iter()
-        .zip(variant_tys.iter())
-        .map(|((_, n), t)| quote! { #n (#t) });
-
+    let mut minput = input.clone();
+    let filt = |a: &syn::Attribute| a.meta.path().is_ident("sumtype");
+    for v in &mut minput.variants {
+        let to_remove = v.attrs.iter().filter(|a| filt(a)).count();
+        for _ in 0..to_remove {
+            let pos = v.attrs.iter().position(filt).unwrap();
+            v.attrs.swap_remove(pos);
+        }
+    }
     let input_stripped = quote! {
-       #vis enum #input_ident #tys {
-           #(#stripped_variants),*
-       }
+        #minput
     };
 
     quote! {
