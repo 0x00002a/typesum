@@ -33,6 +33,30 @@ pub use macros::SumType;
 /// let my_thing = MyKinded::I(10);
 /// assert_eq!(my_thing.kind(), SomeKind::I);
 /// ```
+///
+/// Or control whether .kind() is generated at all
+/// ```compile_fail
+/// use typesum::kinded;
+/// #[kinded(no_kind_fn)]
+/// #[derive(Debug)]
+/// enum MyKinded {
+///     I(i64),
+/// }
+/// let my_thing = MyKinded::I(10);
+/// assert_eq!(my_thing.kind(), SomeKind::I);
+/// ```
+///
+/// Or change the name for the kind function
+/// ```
+/// use typesum::kinded;
+/// #[kinded(kind_fn = "mykind")]
+/// #[derive(Debug)]
+/// enum MyKinded {
+///     I(i64),
+/// }
+/// let my_thing = MyKinded::I(10);
+/// assert_eq!(my_thing.mykind(), MyKindedKind::I);
+/// ```
 pub use macros::kinded;
 
 extern crate self as typesum;

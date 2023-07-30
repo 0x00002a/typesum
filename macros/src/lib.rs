@@ -18,6 +18,11 @@ pub fn kinded(
         if meta.path.is_ident("name") {
             let value: syn::LitStr = meta.value()?.parse()?;
             kind_attrs.name.replace(value.value());
+        } else if meta.path.is_ident("no_kind_fn") {
+            kind_attrs.no_kind_fn = true;
+        } else if meta.path.is_ident("kind_fn") {
+            let value: syn::LitStr = meta.value()?.parse()?;
+            kind_attrs.kind_fn.replace(value.value());
         } else {
             return Err(meta.error("invalid argument"));
         }
