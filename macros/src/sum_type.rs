@@ -1,5 +1,3 @@
-use std::ops::Not;
-
 use convert_case::{Case, Casing};
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
@@ -7,31 +5,31 @@ use syn::{Attribute, DeriveInput, Fields};
 macro_rules! define_attrs {
     ($name:ident { $(($ops:ident, $opname:ident)),* }) => {
         #[derive(Default, Debug, Clone, Copy)]
-        struct $name {
-            $($ops : bool),*
+        pub struct $name {
+            $(pub $ops : bool),*
         }
         impl $name {
-            fn add_syn(self, attrs: &Attribute) -> syn::Result<Self> {
-                let mut me = self;
-                attrs.parse_nested_meta(|meta| {
-                    let value = if let Ok(v) = meta.value() {
-                        v.parse::<syn::LitBool>()?.value
-                    } else {
-                        true
-                    };
-                    if false {
-                    } $( else if meta.path.is_ident(stringify!($opname)) { me.$ops = value; } )*
-                    else {
-                        return Err(meta.error("invalid argument"));
-                    }
-                    Ok(())
-                })?;
-                Ok(me)
+            pub fn add_syn(&mut self, meta: &syn::meta::ParseNestedMeta) -> syn::Result<()> {
+                let value = if let Ok(v) = meta.value() {
+                    v.parse::<syn::LitBool>()?.value
+                } else {
+                    true
+                };
+                if false {
+                } $( else if meta.path.is_ident(stringify!($opname)) { self.$ops = value; } )*
+                else {
+                    return Err(meta.error("invalid argument"));
+                }
+                Ok(())
             }
-            fn add_scope(self, attrs: &[Attribute]) -> syn::Result<Self> {
+            fn add_scope(mut self, attrs: &[Attribute]) -> syn::Result<Self> {
                 for attr in attrs {
                     if attr.path().is_ident("sumtype") {
-                        return self.add_syn(attr);
+                        attr.parse_nested_meta(|meta| {
+                            self.add_syn(&meta)?;
+                            Ok(())
+                        })?;
+                        return Ok(self);
                     }
                 }
                 Ok(self)
@@ -118,27 +116,11 @@ where
         );
     generate(as_.as_slice(), bs.as_slice(), is.as_slice())
 }
-pub fn sumtype_attr(attrs: &[Attribute], input: syn::ItemEnum) -> TokenStream {
+pub fn sumtype_attr(mut attrs: Attrs, input: syn::ItemEnum) -> TokenStream {
     let input_ident = &input.ident;
     let vis = &input.vis;
     let tys = &input.generics;
-    let attrs = Attrs {
-        add_as: true,
-        add_into: true,
-        add_is: true,
-        ignore: false,
-        add_mut_as: true,
-        add_try_into: input.generics.type_params().next().is_none(),
-        add_try_into_impl: false,
-        add_try_as: true,
-        add_try_as_mut: true,
-        add_from_impl: true,
-    }
-    .add_scope(&attrs);
-    if let Err(e) = attrs {
-        return e.to_compile_error();
-    }
-    let attrs = attrs.unwrap();
+    attrs.add_try_into_impl &= input.generics.type_params().next().is_none();
     let mut variant_names = Vec::new();
     let mut variants = Vec::new();
     let mut variant_tys = Vec::new();

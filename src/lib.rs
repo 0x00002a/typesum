@@ -13,8 +13,8 @@ extern crate self as typesum;
 ///
 ///
 /// ```
-/// use typesum::{SumType, TryIntoError};
-/// #[sumtype(impl_try_into = true)]
+/// use typesum::{sumtype, TryIntoError};
+/// #[sumtype(impl_try_into)]
 /// enum MySum {
 ///     I(i64),
 ///     B(bool),

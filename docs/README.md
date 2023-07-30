@@ -1,6 +1,6 @@
 ```rust
-use typesum::SumType;
-#[derive(SumType)]
+use typesum::sumtype;
+#[sumtype]
 enum MyT {
     Int(i64),
     #[sumtype(ignore)]
@@ -13,8 +13,8 @@ assert_eq!(v.into_int(), Some(6));
 Individual variants can be ignored with `#[sumtype(ignore)]`
 
 ```rust
-use typesum::SumType;
-#[derive(SumType)]
+use typesum::sumtype;
+#[sumtype]
 enum MyT {
     Int(i64),
     #[sumtype(ignore)]
@@ -23,8 +23,8 @@ enum MyT {
 ```
 
 ```rust,compile_fail
-use typesum::SumType;
-#[derive(SumType)]
+use typesum::sumtype;
+#[sumtype]
 enum MyT {
     Int(i64),
     #[sumtype(ignore)]
