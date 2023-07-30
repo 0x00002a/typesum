@@ -266,7 +266,3 @@ pub fn sumtype_attr(mut attrs: Attrs, input: syn::ItemEnum) -> TokenStream {
         #(#from_impls)*
     }
 }
-
-pub fn derive_sum_type(input: DeriveInput) -> TokenStream {
-    todo!()
-}

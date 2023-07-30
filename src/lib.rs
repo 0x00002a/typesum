@@ -1,12 +1,21 @@
 #![doc = include_str!("../docs/README.md")]
 
-pub use macros::sumtype;
-/// Derive macro for SumType
+/// Generate useful functions for a sumtype
 ///
-/// You probably want to use this over implementing SumType directly. It does
-/// a bunch of nice things like add `[as_|into_|try_into_|is_]*` implementations
-/// and also TryInto
-pub use macros::SumType;
+/// `as_, as_mut,
+///
+/// ```
+/// use typesum::{sumtype, TryIntoError};
+/// #[sumtype]
+/// enum MySum {
+///     I(i64),
+///     B(bool),
+/// }
+/// let v = MySum::B(true);
+/// assert_eq!(r, Err(TryIntoError::new("MySum", "i64")));
+///
+/// ```
+pub use macros::sumtype;
 
 /// Generate kinds for enum
 ///
