@@ -1,8 +1,14 @@
-use quote::quote;
 use sum_type::Attrs;
-use syn::{parse_macro_input, Attribute, DeriveInput};
+use syn::parse_macro_input;
 mod kinded;
 mod sum_type;
+
+fn handle_syn_result(r: syn::Result<proc_macro2::TokenStream>) -> proc_macro::TokenStream {
+    match r {
+        Ok(v) => v.into(),
+        Err(e) => e.to_compile_error().into(),
+    }
+}
 
 #[proc_macro_attribute]
 pub fn kinded(
@@ -26,10 +32,7 @@ pub fn kinded(
     });
     parse_macro_input!(attrs_ts with parser);
     let item = parse_macro_input!(item as syn::ItemEnum);
-    match kinded::kinded_macro(kind_attrs, item) {
-        Ok(v) => v.into(),
-        Err(e) => e.to_compile_error().into(),
-    }
+    handle_syn_result(kinded::kinded_macro(kind_attrs, item))
 }
 
 #[proc_macro_attribute]

@@ -50,6 +50,7 @@ impl std::fmt::Display for TryIntoError {
         ))
     }
 }
+impl std::error::Error for TryIntoError {}
 
 pub trait SumType {
     type Kind;
@@ -128,7 +129,7 @@ mod tests {
     enum MySumDerive {
         #[sumtype(is = false)]
         Int(i64),
-        #[sumtype(mut_as = false, try_into = false)]
+        #[sumtype(as_mut = false, try_into = false)]
         Float(f64),
         String(String),
         Bool(bool),

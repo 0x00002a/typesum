@@ -49,7 +49,7 @@ define_attrs!(Attrs {
     (add_as, as),
     (add_into, into),
     (add_is, is),
-    (add_mut_as, mut_as),
+    (add_mut_as, as_mut),
     (add_try_into, try_into),
     (add_try_into_impl, impl_try_into),
     (add_try_as, try_as),
@@ -96,6 +96,7 @@ fn generate_conv_try<'a>(
 fn gen_names<'a, 'b, A: 'a, B: 'a, C: 'a, R>(
     names: impl Iterator<Item = &'a (&'a (C, impl std::fmt::Display + 'a), (&'a A, &'a B))> + 'b,
     prefix: &str,
+    suffix: Option<&str>,
     filter: impl Fn(&C) -> bool,
     generate: impl FnOnce(&[&A], &[&B], &[Ident]) -> R,
 ) -> R
@@ -108,7 +109,17 @@ where
             (
                 a,
                 b,
-                Ident::new(&format!("{}_{}", prefix, n), Span::call_site()),
+                Ident::new(
+                    &format!(
+                        "{}_{}{}",
+                        prefix,
+                        n,
+                        suffix
+                            .map(|s| format!("_{s}"))
+                            .unwrap_or_else(|| String::new())
+                    ),
+                    Span::call_site(),
+                ),
             )
         })
         .fold(
@@ -165,18 +176,21 @@ pub fn sumtype_attr(mut attrs: Attrs, input: syn::ItemEnum) -> TokenStream {
     let as_names = gen_names(
         variants_zipped.iter(),
         "as",
+        None,
         |a| a.add_as,
         generate_conv_option(vis, Some(quote! { & })),
     );
     let into_names = gen_names(
         variants_zipped.iter(),
         "into",
+        None,
         |a| a.add_into,
         generate_conv_option(vis, None),
     );
     let is_names = gen_names(
         variants_zipped.iter(),
         "is",
+        None,
         |a| a.add_is,
         |variants, _, names| {
             quote! {
@@ -193,13 +207,15 @@ pub fn sumtype_attr(mut attrs: Attrs, input: syn::ItemEnum) -> TokenStream {
     );
     let mut_as_names = gen_names(
         variants_zipped.iter(),
-        "as_mut",
+        "as",
+        Some("mut"),
         |a| a.add_mut_as,
         generate_conv_option(vis, Some(quote! { &mut })),
     );
     let try_into_names = gen_names(
         variants_zipped.iter(),
         "try_into",
+        None,
         |a| a.add_try_into,
         generate_conv_try(vis, input_ident, None),
     );
@@ -207,13 +223,15 @@ pub fn sumtype_attr(mut attrs: Attrs, input: syn::ItemEnum) -> TokenStream {
     let try_as_impls = gen_names(
         variants_zipped.iter(),
         "try_as",
+        None,
         |a| a.add_try_as,
         generate_conv_try(vis, input_ident, Some(quote! { & })),
     );
 
     let try_as_mut_impls = gen_names(
         variants_zipped.iter(),
-        "try_as_mut",
+        "try_as",
+        Some("mut"),
         |a| a.add_try_as,
         generate_conv_try(vis, input_ident, Some(quote! { &mut })),
     );
