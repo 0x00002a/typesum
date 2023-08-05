@@ -41,14 +41,22 @@ impl TryIntoError {
         }
     }
     /// Source sumtype
+    ///
+    /// The source is the enum that the operation failed for
     pub fn source(&self) -> &'static str {
         self.source
     }
     /// Actual variant
+    ///
+    /// The actual variant is the one that the source was actually
+    /// an instance of
     pub fn actual(&self) -> &'static str {
         self.actual
     }
     /// Expected variant
+    ///
+    /// The expected variant is the one we are expecting the source to
+    /// be
     pub fn expected(&self) -> &'static str {
         self.expected
     }

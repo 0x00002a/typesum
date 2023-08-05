@@ -4,7 +4,9 @@ Utilities for working with enums, primarily aimed at sum types.
 
 ## What's in it
 
-### `#[sumtype]`: Generate all those functions and impls you need for a sum type
+### `#[sumtype]`: Generate all the functions and impls you could ever need for a sum type
+
+If you want the full list it's in the [docs for the attribute](typesum::sumtype)
 
 ```rust
 use typesum::{sumtype, TryIntoError};
@@ -27,16 +29,6 @@ assert_eq!(MyT::from(false).try_into_int(), Err(TryIntoError::new("MyT", "Bool",
 
 Individual variants can be ignored with `#[sumtype(ignore)]`
 
-```rust
-use typesum::sumtype;
-#[sumtype]
-enum MyT {
-    Int(i64),
-    #[sumtype(ignore)]
-    Empty,
-}
-```
-
 ```rust,compile_fail
 use typesum::sumtype;
 #[sumtype]
@@ -49,7 +41,7 @@ let v = MyT::Empty;
 v.as_empty(); // doesn't exist
 ```
 
-It can even work with overlapping enums
+It can even work with overlapping types
 
 ```rust
 use typesum::sumtype;
