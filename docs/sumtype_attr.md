@@ -17,15 +17,17 @@ MySum::I(50).is_i() // uh oh, we disabled this one
 
 ## Options
 
-| Function prefix | Argument name | Return           | Default |
+| Function name   | Argument name | Return           | Default |
 | --------------- | ------------- | ---------------- | ------- |
-| `try_as_`       | `try_as`      | `Result<&T>`     | `true`  |
-| `try_as_mut_`   | `try_as_mut`  | `Result<&mut T>` | `true`  |
-| `try_into_`     | `try_into`    | `Result<T>`      | `true`  |
-| `as_`           | `as`          | `Option<&T>`     | `true`  |
-| `as_mut`        | `as_mut`      | `Option<&mut T>` | `true`  |
-| `into_`         | `into`        | `Option<T>`      | `true`  |
-| `is_`           | `is`          | `bool`           | `true`  |
+| `try_as_{}`     | `try_as`      | `Result<&T>`     | `true`  |
+| `try_as_{}_mut` | `try_as_mut`  | `Result<&mut T>` | `true`  |
+| `try_into_{}`   | `try_into`    | `Result<T>`      | `true`  |
+| `as_{}`         | `as`          | `Option<&T>`     | `true`  |
+| `as_{}_mut`     | `as_mut`      | `Option<&mut T>` | `true`  |
+| `into_{}`       | `into`        | `Option<T>`      | `true`  |
+| `is_{}`         | `is`          | `bool`           | `true`  |
+
+where `{}` is the name of the variant in snake_case
 
 Also the impls
 
@@ -108,7 +110,33 @@ enum MySum {
 
 Because of the blanket impl on `TryInto` in the standard library, it is not possible to
 implement `TryInto` for generic types. For this reason `TryInto` implementations will not
-be generated for generic enum's.
+be generated for generic enum's. The `try_into_{}` method is still generated though
+
+```rust
+use typesum::{sumtype, TryIntoError};
+#[sumtype(from = false)]
+enum Either<L, R> {
+    Left(L),
+    Right(R),
+}
+let left = Either::<u64, &str>::Left(5);
+assert_eq!(left.try_into_right(), Err(TryIntoError::new("Either", "Left", "Right")));
+```
+
+## `From` with overlapping types
+
+If there are multiple valid `from` targets, you will get a compile error. You need to
+explicitly annotate with `#[sumtype(from = false)]`, this is a design decision over
+the alternative of simply silently not generating the `From` implementations on a
+conflict.
+
+```rust,compile_fail
+#[sumtype(from = true)]
+enum Overlapping {
+    Int1(i64),
+    Int2(i64),
+}
+```
 
 ## Compile times with large enums
 

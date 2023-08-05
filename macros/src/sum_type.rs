@@ -317,19 +317,28 @@ pub fn sumtype_attr(mut attrs: Attrs, input: syn::DeriveInput) -> TokenStream {
         .filter(|((a, _), _)| a.add_try_into_impl)
         .map(|((_, v), ty)| (ty, v))
         .collect::<Vec<_>>();
-    let from_impls = variants_zipped
+    let from_candidates = variants_zipped
         .iter()
         .filter(|((a, _), _)| a.add_from_impl)
-        .map(|((_, _), (v, t))| {
-            quote! {
-               #[automatically_derived]
-               impl #tys From<#t> for #input_ident #tys {
-                   fn from(value: #t) -> Self {
-                       Self::#v (value)
-                   }
+        .collect::<Vec<_>>();
+    let mut seen_from = Vec::new();
+    for (_, (_, candidate)) in &from_candidates {
+        if seen_from.contains(candidate) {
+            return syn::Error::new_spanned(candidate, "Multiple valid From candidates found. You need to explicitly disable the ones you don't want with #[sumtype(from = false)]. See the docs on #[sumtype] for more information").to_compile_error();
+        } else {
+            seen_from.push(&candidate);
+        }
+    }
+    let from_impls = from_candidates.into_iter().map(|((_, _), (v, t))| {
+        quote! {
+           #[automatically_derived]
+           impl #tys From<#t> for #input_ident #tys {
+               fn from(value: #t) -> Self {
+                   Self::#v (value)
                }
-            }
-        });
+           }
+        }
+    });
 
     let mut minput = input.clone();
     let syn::Data::Enum(minput_data) = &mut minput.data else {
