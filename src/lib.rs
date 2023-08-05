@@ -1,20 +1,7 @@
 #![doc = include_str!("../docs/README.md")]
+#![doc = include_str!("../docs/sumtype_attr.md")]
 
-/// Generate useful functions for a sumtype
-///
-/// `as_, as_mut,
-///
-/// ```
-/// use typesum::{sumtype, TryIntoError};
-/// #[sumtype]
-/// enum MySum {
-///     I(i64),
-///     B(bool),
-/// }
-/// let v = MySum::B(true);
-/// assert_eq!(r, Err(TryIntoError::new("MySum", "i64")));
-///
-/// ```
+#[doc = include_str!("../docs/sumtype_attr.md")]
 pub use macros::sumtype;
 
 /// Generate kinds for enum

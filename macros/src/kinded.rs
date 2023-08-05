@@ -47,9 +47,11 @@ pub fn kinded_macro(attrs: Attrs, input: ItemEnum) -> syn::Result<TokenStream> {
     let o = quote! {
         #input
         #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
+        #[allow(unused)]
         #vis enum #name {
             #(#kinds),*
         }
+        #[automatically_derived]
         impl #orig_input {
             #kinds_fn
         }
