@@ -34,7 +34,7 @@ let v = MyT::Empty;
 v.as_empty(); // doesn't exist
 ```
 
-### TryInto and generic type
+### TryInto and generic types
 
 Because of the blanket impl on `TryInto` in the standard library, it is not possible to
 implement `TryInto` for generic types. For this reason `TryInto` implementations will not

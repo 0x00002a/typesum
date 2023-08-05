@@ -127,7 +127,6 @@ pub fn sumtype_attr(mut attrs: Attrs, input: syn::ItemEnum) -> TokenStream {
     let vis = &input.vis;
     let tys = &input.generics;
     attrs.add_try_into_impl &= input.generics.type_params().next().is_none();
-    assert!(!attrs.all_false());
     let mut variant_names = Vec::new();
     let mut variants = Vec::new();
     let mut variant_tys = Vec::new();
@@ -149,6 +148,11 @@ pub fn sumtype_attr(mut attrs: Attrs, input: syn::ItemEnum) -> TokenStream {
             return syn::Error::new_spanned(f, "must be single variant").to_compile_error();
         }
         variant_tys.push(f.unnamed.first().unwrap().ty.to_owned());
+    }
+    if variants.is_empty() {
+        return quote! {
+            compile_error!("this sumtype annotation won't do anything, try adding some options like #[sumtype(all = false, is = true)]");
+        }.into();
     }
     let lowercase_names = variants
         .iter()

@@ -53,11 +53,6 @@ pub fn sumtype(
         Ok(())
     });
     parse_macro_input!(attrs_ts with parser);
-    if attrs.all_false() {
-        return quote! {
-            compile_error!("this sumtype annotation won't do anything, try adding some options like #[sumtype(all = false, is = true)]");
-        }.into();
-    }
     let input = parse_macro_input!(item as syn::ItemEnum);
     sum_type::sumtype_attr(attrs, input).into()
 }
