@@ -2,11 +2,11 @@
 
 #[doc = include_str!("../docs/sumtype_attr.md")]
 #[cfg(feature = "sumtype")]
-pub use macros::sumtype;
+pub use typesum_macros::sumtype;
 
 #[doc = include_str!("../docs/kinded.md")]
 #[cfg(feature = "kinded")]
-pub use macros::kinded;
+pub use typesum_macros::kinded;
 
 extern crate self as typesum;
 /// Error type for TryInto impl's on derived sumtypes

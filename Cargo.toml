@@ -13,11 +13,11 @@ readme = "docs/README.md"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-macros = { path = "./macros", optional = true }
+typesum-macros = { path = "./typesum-macros", optional = true }
 
 [features]
-sumtype = ["macros/sumtype"]
-kinded = ["macros/kinded"]
+sumtype = ["typesum-macros/sumtype"]
+kinded = ["typesum-macros/kinded"]
 default = ["sumtype", "kinded"]
 
 [dev-dependencies]
