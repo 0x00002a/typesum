@@ -9,7 +9,7 @@ edition = "2021"
 convert_case = "0.6.0"
 proc-macro2 = "1.0.66"
 quote = "1.0.32"
-syn = { version = "2.0.27", features = ["full"] }
+syn = { version = "2.0.27", features = ["full", "extra-traits"] }
 thiserror = "1.0.44"
 
 [lib]

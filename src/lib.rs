@@ -1,5 +1,4 @@
 #![doc = include_str!("../docs/README.md")]
-#![doc = include_str!("../docs/sumtype_attr.md")]
 
 #[doc = include_str!("../docs/sumtype_attr.md")]
 pub use macros::sumtype;

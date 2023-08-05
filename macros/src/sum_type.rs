@@ -20,6 +20,20 @@ impl<'a> FullVariant<'a> {
         }
     }
 }
+fn bucketise_by<A, B>(
+    mut f: impl FnMut(&A, &A) -> bool,
+    input: impl Iterator<Item = (A, B)>,
+) -> Vec<(A, Vec<B>)> {
+    let mut buckets: Vec<(A, Vec<B>)> = Vec::new();
+    for (a, b) in input {
+        if let Some(bucket) = buckets.iter_mut().find(|(ba, _)| f(ba, &a)).map(|(_, b)| b) {
+            bucket.push(b);
+        } else {
+            buckets.push((a, vec![b]));
+        }
+    }
+    buckets
+}
 
 macro_rules! define_attrs {
     ($name:ident { $(($ops:ident, $opname:ident)),* }) => {
@@ -95,13 +109,13 @@ fn generate_conv_option<'a>(
 fn generate_failed_matches<'a>(
     variants: &[FullVariant<'a>],
     input_ident: &Ident,
-    wanted: &Ident,
+    wanted: impl ToTokens,
 ) -> TokenStream {
     let patterns = variants.iter().map(|v| v.match_pat());
     let names = variants.iter().map(|v| v.name());
     quote! {
         #(
-            #input_ident :: #patterns => Err(::typesum::TryIntoError::new(stringify!(#input_ident), stringify!(#names), stringify!(#wanted)))
+            #input_ident :: #patterns => Err(::typesum::TryIntoError::new(stringify!(#input_ident), stringify!(#names), #wanted))
         ),*
     }
 }
@@ -114,7 +128,7 @@ fn generate_try_match_blocks<'a>(
     all_variants: &'a [FullVariant],
 ) -> impl Iterator<Item = TokenStream> + 'a {
     variants.iter().map(move |v| {
-        let failed = generate_failed_matches(all_variants, input_ident, v);
+        let failed = generate_failed_matches(all_variants, input_ident, quote! { stringify!(#v) });
         quote! {
             match self {
                 #input_ident :: #v(v) => Ok(v),
@@ -190,7 +204,7 @@ pub fn sumtype_attr(mut attrs: Attrs, input: syn::ItemEnum) -> TokenStream {
     let mut variant_names = Vec::new();
     let mut variants = Vec::new();
     let mut variant_tys = Vec::new();
-    let mut all_variant_matches = input
+    let all_variant_matches = input
         .variants
         .iter()
         .map(|v| FullVariant { inner: v })
@@ -300,8 +314,6 @@ pub fn sumtype_attr(mut attrs: Attrs, input: syn::ItemEnum) -> TokenStream {
         .filter(|((a, _), _)| a.add_try_into_impl)
         .map(|((_, v), ty)| (ty, v))
         .collect::<Vec<_>>();
-    let try_intos_idents = try_intos.iter().map(|(_, r)| r).collect::<Vec<_>>();
-    let try_intos_tys = try_intos.iter().map(|(t, _)| t);
     let from_impls = variants_zipped
         .iter()
         .filter(|((a, _), _)| a.add_from_impl)
@@ -328,21 +340,28 @@ pub fn sumtype_attr(mut attrs: Attrs, input: syn::ItemEnum) -> TokenStream {
     let input_stripped = quote! {
         #minput
     };
-    let try_into_impls = try_intos.iter().map(|(ty, ident)| {
-        let failed = generate_failed_matches(&all_variant_matches, input_ident, ident);
-        quote! {
-            #[automatically_derived]
-            impl #tys TryInto<#ty> for #input_ident #tys {
-                type Error = ::typesum::TryIntoError;
-                fn try_into(self) -> Result<#ty, Self::Error> {
-                    match self {
-                        Self:: #ident (v) => Ok(v),
-                        #failed
+    let try_into_impls = bucketise_by(|l, r| l == r, try_intos.into_iter())
+        .into_iter()
+        .map(|(ty, idents)| {
+            let name = idents
+                .iter()
+                .map(|i| i.to_string())
+                .reduce(|xs, x| format!("{xs} | {x}"))
+                .unwrap();
+            let failed = generate_failed_matches(&all_variant_matches, input_ident, &name);
+            quote! {
+                #[automatically_derived]
+                impl #tys TryInto<#ty> for #input_ident #tys {
+                    type Error = ::typesum::TryIntoError;
+                    fn try_into(self) -> Result<#ty, Self::Error> {
+                        match self {
+                            #(Self:: #idents (v) => Ok(v),)*
+                            #failed
+                        }
                     }
                 }
             }
-        }
-    });
+        });
 
     quote! {
         #input_stripped

@@ -109,3 +109,16 @@ enum MySum {
 Because of the blanket impl on `TryInto` in the standard library, it is not possible to
 implement `TryInto` for generic types. For this reason `TryInto` implementations will not
 be generated for generic enum's.
+
+## Compile times with large enums
+
+For every `try_` function and `impl TryInto`, `n` matches need to be generated
+(where `n` is the number of variants in your enum, _including_ ignored variants).
+This means that on the default settings `3n^2` matches will be generated, and
+if you also ask it to generate the `TryInto`'s it becomes `4n^2`. This isn't
+noticeable for normal sized enums (like 5-10 variants) but due to the exponential
+scaling you may start to notice compile time impacts with large ones.
+
+If you do encounter this you should annotate the variants you don't need with
+`#[sumtype(try_as = false, try_into = false, try_as_mut = false)]` (or put it
+in the top-level one to disable them entirely).

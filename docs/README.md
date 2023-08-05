@@ -49,6 +49,27 @@ let v = MyT::Empty;
 v.as_empty(); // doesn't exist
 ```
 
+It can even work with overlapping enums
+
+```rust
+use typesum::sumtype;
+#[sumtype(from = false, impl_try_into)]
+#[derive(Debug, PartialEq, Eq)]
+enum Overlap {
+    #[sumtype(from)]
+    Int1(i64),
+    Int2(i64),
+    Int3(i64),
+    #[sumtype(from)]
+    Bool1(bool),
+    Bool2(bool),
+}
+assert_eq!(Overlap::from(0), Overlap::Int1(0));
+assert_eq!(Overlap::Int3(5).try_into(), Ok(5));
+assert_eq!(Overlap::from(false), Overlap::Bool1(false));
+assert_eq!(Overlap::Bool2(false).try_into(), Ok(false));
+```
+
 ### `#[kinded]`: Generate kind aliases for an enum
 
 ```rust
