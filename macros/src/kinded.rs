@@ -1,6 +1,6 @@
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::{format_ident, quote};
-use syn::ItemEnum;
+use syn::DeriveInput;
 
 #[derive(Default, Debug)]
 pub struct Attrs {
@@ -9,7 +9,10 @@ pub struct Attrs {
     pub no_kind_fn: bool,
 }
 
-pub fn kinded_macro(attrs: Attrs, input: ItemEnum) -> syn::Result<TokenStream> {
+pub fn kinded_macro(attrs: Attrs, input: DeriveInput) -> syn::Result<TokenStream> {
+    let syn::Data::Enum(data) = &input.data else {
+        return Err(syn::Error::new_spanned(&input, "kinded only works on enums"));
+    };
     let name = attrs
         .name
         .map(|s| Ident::new(&s, Span::mixed_site()))
@@ -20,7 +23,7 @@ pub fn kinded_macro(attrs: Attrs, input: ItemEnum) -> syn::Result<TokenStream> {
         .unwrap_or_else(|| Ident::new("kind", Span::mixed_site()));
     let orig_input = &input.ident;
     let vis = &input.vis;
-    let orig_variants = input.variants.iter().map(|v| {
+    let orig_variants = data.variants.iter().map(|v| {
         let fields = match v.fields {
             syn::Fields::Named(_) => Some(quote! { { .. } }),
             syn::Fields::Unnamed(_) => Some(quote! {  (..) }),
@@ -32,7 +35,7 @@ pub fn kinded_macro(attrs: Attrs, input: ItemEnum) -> syn::Result<TokenStream> {
             #ident #fields
         }
     });
-    let kinds = input.variants.iter().map(|v| &v.ident).collect::<Vec<_>>();
+    let kinds = data.variants.iter().map(|v| &v.ident).collect::<Vec<_>>();
     let kinds_fn = if attrs.no_kind_fn {
         None
     } else {

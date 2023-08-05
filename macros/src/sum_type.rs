@@ -196,7 +196,10 @@ where
         );
     generate(as_.as_slice(), bs.as_slice(), is.as_slice())
 }
-pub fn sumtype_attr(mut attrs: Attrs, input: syn::ItemEnum) -> TokenStream {
+pub fn sumtype_attr(mut attrs: Attrs, input: syn::DeriveInput) -> TokenStream {
+    let syn::Data::Enum(data) = &input.data else {
+        return syn::Error::new_spanned(&input, "sumtype can only act on enums").to_compile_error();
+    };
     let input_ident = &input.ident;
     let vis = &input.vis;
     let tys = &input.generics;
@@ -204,12 +207,12 @@ pub fn sumtype_attr(mut attrs: Attrs, input: syn::ItemEnum) -> TokenStream {
     let mut variant_names = Vec::new();
     let mut variants = Vec::new();
     let mut variant_tys = Vec::new();
-    let all_variant_matches = input
+    let all_variant_matches = data
         .variants
         .iter()
         .map(|v| FullVariant { inner: v })
         .collect::<Vec<_>>();
-    for variant in &input.variants {
+    for variant in &data.variants {
         let attrs = attrs.add_scope(&variant.attrs);
         if let Err(e) = attrs {
             return e.to_compile_error();
@@ -329,8 +332,11 @@ pub fn sumtype_attr(mut attrs: Attrs, input: syn::ItemEnum) -> TokenStream {
         });
 
     let mut minput = input.clone();
+    let syn::Data::Enum(minput_data) = &mut minput.data else {
+        unreachable!()
+    };
     let filt = |a: &syn::Attribute| a.meta.path().is_ident("sumtype");
-    for v in &mut minput.variants {
+    for v in &mut minput_data.variants {
         let to_remove = v.attrs.iter().filter(|a| filt(a)).count();
         for _ in 0..to_remove {
             let pos = v.attrs.iter().position(filt).unwrap();

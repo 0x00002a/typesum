@@ -31,7 +31,7 @@ pub fn kinded(
         Ok(())
     });
     parse_macro_input!(attrs_ts with parser);
-    let item = parse_macro_input!(item as syn::ItemEnum);
+    let item = parse_macro_input!(item as syn::DeriveInput);
     handle_syn_result(kinded::kinded_macro(kind_attrs, item))
 }
 
@@ -56,6 +56,6 @@ pub fn sumtype(
         Ok(())
     });
     parse_macro_input!(attrs_ts with parser);
-    let input = parse_macro_input!(item as syn::ItemEnum);
+    let input = parse_macro_input!(item as syn::DeriveInput);
     sum_type::sumtype_attr(attrs, input).into()
 }
