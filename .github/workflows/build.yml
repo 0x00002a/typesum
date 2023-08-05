@@ -1,0 +1,27 @@
+# vim: tw=2,ts=2,sw=2
+name: build + test
+on: [push]
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+      fail-fast: false
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: checkout
+        uses: actions/checkout@v3
+      - name: init toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          default: true
+          override: true
+          components: clippy
+      - name: build
+        run: cargo build --tests
+      - name: clippy
+        run: cargo clippy --tests
+      - name: test
+        run: cargo test

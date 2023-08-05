@@ -2,6 +2,13 @@
 name = "typesum"
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
+description = "Utilties for enums, targeted at sum types"
+repository = "https://github.com/0x00002a/typesum"
+keywords = ["enum", "sumtypes", "utilities", "kinds"]
+authors = ["Natasha England-Elbro <natasha@natashaee.me>"]
+readme = "docs/README.md"
+
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
