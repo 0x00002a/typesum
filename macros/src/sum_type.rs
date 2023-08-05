@@ -1,7 +1,7 @@
 use convert_case::{Case, Casing};
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
-use syn::{Attribute, DeriveInput, Fields};
+use syn::{Attribute, Fields};
 macro_rules! define_attrs {
     ($name:ident { $(($ops:ident, $opname:ident)),* }) => {
         #[derive(Default, Debug, Clone, Copy)]
@@ -15,12 +15,19 @@ macro_rules! define_attrs {
                 } else {
                     true
                 };
-                if false {
-                } $( else if meta.path.is_ident(stringify!($opname)) { self.$ops = value; } )*
+                if meta.path.is_ident("ignore") {
+                    $(self.$ops = false;)*
+                } else if meta.path.is_ident("all") {
+                    $(self.$ops = value;)*
+                }
+                $( else if meta.path.is_ident(stringify!($opname)) { self.$ops = value; } )*
                 else {
                     return Err(meta.error("invalid argument"));
                 }
                 Ok(())
+            }
+            pub fn all_false(&self) -> bool {
+                !(false $(|| self.$ops)*)
             }
             fn add_scope(mut self, attrs: &[Attribute]) -> syn::Result<Self> {
                 for attr in attrs {
@@ -42,7 +49,6 @@ define_attrs!(Attrs {
     (add_as, as),
     (add_into, into),
     (add_is, is),
-    (ignore, ignore),
     (add_mut_as, mut_as),
     (add_try_into, try_into),
     (add_try_into_impl, impl_try_into),
@@ -121,6 +127,7 @@ pub fn sumtype_attr(mut attrs: Attrs, input: syn::ItemEnum) -> TokenStream {
     let vis = &input.vis;
     let tys = &input.generics;
     attrs.add_try_into_impl &= input.generics.type_params().next().is_none();
+    assert!(!attrs.all_false());
     let mut variant_names = Vec::new();
     let mut variants = Vec::new();
     let mut variant_tys = Vec::new();
@@ -130,7 +137,7 @@ pub fn sumtype_attr(mut attrs: Attrs, input: syn::ItemEnum) -> TokenStream {
             return e.to_compile_error();
         }
         let attrs = attrs.unwrap();
-        if attrs.ignore {
+        if attrs.all_false() {
             continue;
         }
         variant_names.push(variant.ident.clone());

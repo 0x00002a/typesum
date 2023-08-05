@@ -1,3 +1,4 @@
+use quote::quote;
 use sum_type::Attrs;
 use syn::{parse_macro_input, Attribute, DeriveInput};
 mod kinded;
@@ -40,7 +41,6 @@ pub fn sumtype(
         add_as: true,
         add_into: true,
         add_is: true,
-        ignore: false,
         add_mut_as: true,
         add_try_into: true,
         add_try_into_impl: false,
@@ -53,6 +53,11 @@ pub fn sumtype(
         Ok(())
     });
     parse_macro_input!(attrs_ts with parser);
+    if attrs.all_false() {
+        return quote! {
+            compile_error!("this sumtype annotation won't do anything, try adding some options like #[sumtype(all = false, is = true)]");
+        }.into();
+    }
     let input = parse_macro_input!(item as syn::ItemEnum);
     sum_type::sumtype_attr(attrs, input).into()
 }
