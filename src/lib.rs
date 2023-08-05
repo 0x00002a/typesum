@@ -1,9 +1,11 @@
 #![doc = include_str!("../docs/README.md")]
 
 #[doc = include_str!("../docs/sumtype_attr.md")]
+#[cfg(feature = "sumtype")]
 pub use macros::sumtype;
 
 #[doc = include_str!("../docs/kinded.md")]
+#[cfg(feature = "kinded")]
 pub use macros::kinded;
 
 extern crate self as typesum;

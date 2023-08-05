@@ -1,6 +1,7 @@
-use sum_type::Attrs;
 use syn::parse_macro_input;
+#[cfg(feature = "kinded")]
 mod kinded;
+#[cfg(feature = "sumtype")]
 mod sum_type;
 
 fn handle_syn_result(r: syn::Result<proc_macro2::TokenStream>) -> proc_macro::TokenStream {
@@ -10,6 +11,7 @@ fn handle_syn_result(r: syn::Result<proc_macro2::TokenStream>) -> proc_macro::To
     }
 }
 
+#[cfg(feature = "kinded")]
 #[proc_macro_attribute]
 pub fn kinded(
     attrs_ts: proc_macro::TokenStream,
@@ -35,12 +37,13 @@ pub fn kinded(
     handle_syn_result(kinded::kinded_macro(kind_attrs, item))
 }
 
+#[cfg(feature = "sumtype")]
 #[proc_macro_attribute]
 pub fn sumtype(
     attrs_ts: proc_macro::TokenStream,
     item: proc_macro::TokenStream,
 ) -> proc_macro::TokenStream {
-    let mut attrs = Attrs {
+    let mut attrs = sum_type::Attrs {
         add_as: true,
         add_into: true,
         add_is: true,
