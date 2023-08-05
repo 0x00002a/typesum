@@ -1,7 +1,26 @@
 use convert_case::{Case, Casing};
 use proc_macro2::{Ident, Span, TokenStream};
-use quote::quote;
+use quote::{quote, ToTokens};
 use syn::{Attribute, Fields};
+
+#[derive(Clone, Copy)]
+struct FullVariant<'a> {
+    inner: &'a syn::Variant,
+}
+impl<'a> FullVariant<'a> {
+    fn name(&self) -> &'a Ident {
+        &self.inner.ident
+    }
+    fn match_pat(&self) -> impl ToTokens {
+        let name = self.name();
+        match &self.inner.fields {
+            Fields::Named(_) => quote! {  #name { .. } },
+            Fields::Unnamed(_) => quote! {  #name (..) },
+            Fields::Unit => quote! {  #name },
+        }
+    }
+}
+
 macro_rules! define_attrs {
     ($name:ident { $(($ops:ident, $opname:ident)),* }) => {
         #[derive(Default, Debug, Clone, Copy)]
@@ -73,20 +92,50 @@ fn generate_conv_option<'a>(
         }
     }
 }
+fn generate_failed_matches<'a>(
+    variants: &[FullVariant<'a>],
+    input_ident: &Ident,
+    wanted: &Ident,
+) -> TokenStream {
+    let patterns = variants.iter().map(|v| v.match_pat());
+    let names = variants.iter().map(|v| v.name());
+    quote! {
+        #(
+            #input_ident :: #patterns => Err(::typesum::TryIntoError::new(stringify!(#input_ident), stringify!(#names), stringify!(#wanted)))
+        ),*
+    }
+}
+
+/// Generate all the match blocks (match `on` { ... }) where each
+/// variant is matched and all others are errors
+fn generate_try_match_blocks<'a>(
+    variants: &'a [&'a Ident],
+    input_ident: &'a Ident,
+    all_variants: &'a [FullVariant],
+) -> impl Iterator<Item = TokenStream> + 'a {
+    variants.iter().map(move |v| {
+        let failed = generate_failed_matches(all_variants, input_ident, v);
+        quote! {
+            match self {
+                #input_ident :: #v(v) => Ok(v),
+                #failed
+            }
+        }
+    })
+}
 
 fn generate_conv_try<'a>(
     vis: &'a syn::Visibility,
     input_ident: &'a Ident,
     prefix: Option<TokenStream>,
+    all_variants: &'a [FullVariant],
 ) -> impl FnOnce(&[&Ident], &[&syn::Type], &[Ident]) -> TokenStream + 'a {
     move |variants, tys, names| {
+        let blocks = generate_try_match_blocks(variants, input_ident, all_variants);
         quote! {
             #(
                 #vis fn #names (#prefix self) -> Result<#prefix #tys, ::typesum::TryIntoError> {
-                    match self {
-                        Self::#variants (v) => Ok(v),
-                        _ => Err(::typesum::TryIntoError::new(stringify!(#input_ident), stringify!(#tys))),
-                    }
+                    #blocks
                 }
             )*
         }
@@ -141,6 +190,11 @@ pub fn sumtype_attr(mut attrs: Attrs, input: syn::ItemEnum) -> TokenStream {
     let mut variant_names = Vec::new();
     let mut variants = Vec::new();
     let mut variant_tys = Vec::new();
+    let mut all_variant_matches = input
+        .variants
+        .iter()
+        .map(|v| FullVariant { inner: v })
+        .collect::<Vec<_>>();
     for variant in &input.variants {
         let attrs = attrs.add_scope(&variant.attrs);
         if let Err(e) = attrs {
@@ -217,7 +271,7 @@ pub fn sumtype_attr(mut attrs: Attrs, input: syn::ItemEnum) -> TokenStream {
         "try_into",
         None,
         |a| a.add_try_into,
-        generate_conv_try(vis, input_ident, None),
+        generate_conv_try(vis, input_ident, None, &all_variant_matches),
     );
 
     let try_as_impls = gen_names(
@@ -225,7 +279,7 @@ pub fn sumtype_attr(mut attrs: Attrs, input: syn::ItemEnum) -> TokenStream {
         "try_as",
         None,
         |a| a.add_try_as,
-        generate_conv_try(vis, input_ident, Some(quote! { & })),
+        generate_conv_try(vis, input_ident, Some(quote! { & }), &all_variant_matches),
     );
 
     let try_as_mut_impls = gen_names(
@@ -233,7 +287,12 @@ pub fn sumtype_attr(mut attrs: Attrs, input: syn::ItemEnum) -> TokenStream {
         "try_as",
         Some("mut"),
         |a| a.add_try_as,
-        generate_conv_try(vis, input_ident, Some(quote! { &mut })),
+        generate_conv_try(
+            vis,
+            input_ident,
+            Some(quote! { &mut }),
+            &all_variant_matches,
+        ),
     );
     let try_intos = variants
         .iter()
@@ -269,21 +328,27 @@ pub fn sumtype_attr(mut attrs: Attrs, input: syn::ItemEnum) -> TokenStream {
     let input_stripped = quote! {
         #minput
     };
-
-    quote! {
-        #input_stripped
-        #(
+    let try_into_impls = try_intos.iter().map(|(ty, ident)| {
+        let failed = generate_failed_matches(&all_variant_matches, input_ident, ident);
+        quote! {
             #[automatically_derived]
-            impl #tys TryInto<#try_intos_tys> for #input_ident #tys {
+            impl #tys TryInto<#ty> for #input_ident #tys {
                 type Error = ::typesum::TryIntoError;
-                fn try_into(self) -> Result<#try_intos_tys, Self::Error> {
+                fn try_into(self) -> Result<#ty, Self::Error> {
                     match self {
-                        Self:: #try_intos_idents (v) => Ok(v),
-                        _ => Err(::typesum::TryIntoError::new(stringify!(#input_ident), stringify!(#try_intos_tys))),
+                        Self:: #ident (v) => Ok(v),
+                        #failed
                     }
                 }
             }
-        )*
+        }
+    });
+
+    quote! {
+        #input_stripped
+
+        #(#try_into_impls)*
+
         #[automatically_derived]
         impl #tys #input_ident #tys {
             #try_into_names

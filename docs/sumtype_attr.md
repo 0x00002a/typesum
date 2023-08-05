@@ -46,7 +46,7 @@ enum MySum {
 }
 let v = MySum::B(true);
 let r: Result<i64, _> = v.try_into();
-assert_eq!(r, Err(TryIntoError::new("MySum", "i64")));
+assert_eq!(r, Err(TryIntoError::new("MySum", "B", "I")));
 
 ```
 
@@ -103,3 +103,9 @@ enum MySum {
     B(bool),
 }
 ```
+
+## TryInto and generic types
+
+Because of the blanket impl on `TryInto` in the standard library, it is not possible to
+implement `TryInto` for generic types. For this reason `TryInto` implementations will not
+be generated for generic enum's.

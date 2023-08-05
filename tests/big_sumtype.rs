@@ -2,7 +2,7 @@ use typesum::{kinded, sumtype};
 
 #[allow(unused)]
 #[kinded]
-#[sumtype(from = false)]
+#[sumtype(from = false, try_as = false, try_into = false, try_as_mut = false)]
 enum Big {
     Usz(usize),
     Sts(&'static str),

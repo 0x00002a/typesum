@@ -20,33 +20,45 @@ extern crate self as typesum;
 /// }
 /// let v = MySum::B(true);
 /// let r: Result<i64, _> = v.try_into();
-/// assert_eq!(r, Err(TryIntoError::new("MySum", "i64")));
-///
+/// assert_eq!(r, Err(TryIntoError::new("MySum", "B", "I")));
+/// let e = r.unwrap_err();
+/// assert_eq!(e.source(), "MySum");
+/// assert_eq!(e.actual(), "B");
+/// assert_eq!(e.expected(), "I");
 /// ```
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
 pub struct TryIntoError {
-    from: &'static str,
-    to: &'static str,
+    source: &'static str,
+    actual: &'static str,
+    expected: &'static str,
 }
 impl TryIntoError {
     /// Create a new `TryIntoError`
-    pub fn new(from: &'static str, to: &'static str) -> Self {
-        Self { from, to }
+    pub fn new(source: &'static str, actual: &'static str, expected: &'static str) -> Self {
+        Self {
+            source,
+            actual,
+            expected,
+        }
     }
     /// Source sumtype
-    pub fn from(&self) -> &'static str {
-        self.from
+    pub fn source(&self) -> &'static str {
+        self.source
     }
-    /// Target type
-    pub fn to(&self) -> &'static str {
-        self.to
+    /// Actual variant
+    pub fn actual(&self) -> &'static str {
+        self.actual
+    }
+    /// Expected variant
+    pub fn expected(&self) -> &'static str {
+        self.expected
     }
 }
 impl std::fmt::Display for TryIntoError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!(
-            "failed to convert from sumtype '{}' to type '{}'",
-            self.from, self.to
+            "sumtype '{}': variant '{}' expected but was '{}'",
+            self.source, self.expected, self.actual
         ))
     }
 }
@@ -126,12 +138,14 @@ mod tests {
     use crate::{SumType, TryIntoError};
 
     #[sumtype]
+    #[derive(Clone)]
     enum MySumDerive {
         #[sumtype(is = false)]
         Int(i64),
         #[sumtype(as_mut = false, try_into = false)]
         Float(f64),
         String(String),
+        #[sumtype(impl_try_into)]
         Bool(bool),
         #[sumtype(ignore)]
         Not,
@@ -150,9 +164,11 @@ mod tests {
     fn my_sum_derive_try_into() {
         let v = MySumDerive::Int(64);
         assert_eq!(
-            v.try_into_string(),
-            Err(TryIntoError::new("MySumDerive", "String"))
+            v.clone().try_into_string(),
+            Err(TryIntoError::new("MySumDerive", "Int", "String"))
         );
+        let k: Result<bool, _> = v.try_into();
+        assert_eq!(k, Err(TryIntoError::new("MySumDerive", "Int", "Bool")));
     }
 
     #[test]
