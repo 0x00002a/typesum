@@ -38,6 +38,15 @@ pub struct TryIntoError<Source> {
 }
 impl<Source> TryIntoError<Source> {
     /// Create a new `TryIntoError`
+    ///
+    /// ```
+    /// use typesum::{TryIntoError, AnyTryIntoError};
+    ///
+    /// let err = AnyTryIntoError::new("s", "a", "e");
+    /// assert_eq!(err.source(), "s");
+    /// assert_eq!(err.actual(), "a");
+    /// assert_eq!(err.expected(), "e");
+    /// ```
     pub fn new(source: &'static str, actual: &'static str, expected: &'static str) -> Self {
         Self {
             discrim: PhantomData::default(),
@@ -46,25 +55,73 @@ impl<Source> TryIntoError<Source> {
             expected,
         }
     }
-    /// Source sumtype
+    /// Source of your problems
     ///
-    /// The source is the enum that the operation failed for
+    /// This is gives you the type name of the enum that the operation failed for
+    ///
+    /// ```
+    /// use typesum::{sumtype, TryIntoError, AnyTryIntoError};
+    ///
+    /// struct Ketchup;
+    /// struct Vinegar;
+    /// struct Brown;
+    /// struct Mayonnaise;
+    ///
+    /// #[sumtype]
+    /// enum Sauce {
+    ///     Ketchup(Ketchup),
+    ///     Vinegar(Vinegar),
+    ///     Brown(Brown),
+    ///     Mayonnaise(Mayonnaise),
+    /// }
+    ///
+    /// let mmm = Sauce::Ketchup(Ketchup);
+    /// let Err(eww) = mmm.try_as_mayonnaise() else { unreachable!() };
+    /// assert_eq!(eww.source(), "Sauce");
+    /// assert_eq!(eww, TryIntoError::new("Sauce", "Ketchup", "Mayonnaise"));
+    ///
+    /// ```
     pub fn source(&self) -> &'static str {
         self.source
     }
-    /// Actual variant
+    /// Active variant of the `source` when converting
     ///
     /// The actual variant is the one that the source was actually
     /// an instance of
     pub fn actual(&self) -> &'static str {
         self.actual
     }
-    /// Expected variant
+    /// Expected variant of the `source` that we failed to convert to
     ///
     /// The expected variant is the one we are expecting the source to
     /// be
     pub fn expected(&self) -> &'static str {
         self.expected
+    }
+    /// Forget the source of your troubles! (at the type level anyway)
+    ///
+    /// This just erases the `Source` type to allow you to aggregate errors
+    /// without having to handle each as a different type. The error still
+    /// remembers it's [`source`](TryIntoError::source) at runtime though.
+    ///
+    /// ```
+    /// use typesum::{sumtype, TryIntoError, AnyTryIntoError};
+    /// #[sumtype]
+    /// #[derive(Debug, PartialEq, Eq)]
+    /// enum ErrorKind {
+    ///     SomebodyConvertedWrongOhLordOhJeez(AnyTryIntoError),
+    /// }
+    /// #[sumtype]
+    /// enum BetterResult {
+    ///     Aight(i64),
+    ///     Messed(&'static str),
+    /// }
+    /// let cool = BetterResult::Aight(42);
+    /// let real = cool.try_as_messed().map_err(|e| e.forget_source().into());
+    /// assert_eq!(real, Err(ErrorKind::SomebodyConvertedWrongOhLordOhJeez(AnyTryIntoError::new("BetterResult", "Aight", "Messed"))));
+    /// ```
+    pub fn forget_source(self) -> AnyTryIntoError {
+        AnyTryIntoError::new(self.source, self.actual, self.expected)
     }
 }
 impl<S> std::fmt::Display for TryIntoError<S> {
@@ -76,6 +133,12 @@ impl<S> std::fmt::Display for TryIntoError<S> {
     }
 }
 impl<S> std::error::Error for TryIntoError<S> {}
+
+/// A [`TryIntoError`] who has forgotten where it comes from
+/// at the type level.
+///
+/// See [`TryIntoError::forget_source`] for more information
+pub type AnyTryIntoError = TryIntoError<()>;
 
 #[cfg(test)]
 mod tests {
