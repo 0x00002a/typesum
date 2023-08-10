@@ -106,6 +106,35 @@ enum MySum {
 }
 ```
 
+### `only`
+
+There is also a special `only = attr` field for an argument. This is the same as `(all = false, attr = true)` e.g.
+
+```rust
+use typesum::sumtype;
+#[sumtype]
+enum VeryFunny {
+    NonUnit(()),
+    #[sumtype(only = is)]
+    Unit,
+}
+let funny = VeryFunny::Unit;
+assert!(funny.is_unit());
+```
+
+This would fail if we didn't only derive `is` since anything else requires it to be a unit variant.
+
+You also are not allowed to set `only` to an invalid property :p
+
+```rust,compile_fail
+use typesum::sumtype;
+#[sumtype]
+enum NiceTry {
+    #[sumtype(only = oopsie)]
+    Try(()),
+}
+```
+
 ## TryInto and generic types
 
 Because of the blanket impl on `TryInto` in the standard library, it is not possible to

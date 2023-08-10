@@ -1,7 +1,7 @@
 use convert_case::{Case, Casing};
 use proc_macro2::{Ident, Span, TokenStream};
-use quote::{quote, ToTokens};
-use syn::{Attribute, Fields};
+use quote::{format_ident, quote, ToTokens};
+use syn::{token::Not, Attribute, Fields};
 
 #[derive(Clone, Copy)]
 struct FullVariant<'a> {
@@ -43,6 +43,16 @@ macro_rules! define_attrs {
         }
         impl $name {
             pub fn add_syn(&mut self, meta: &syn::meta::ParseNestedMeta) -> syn::Result<()> {
+                const ERR: &'static str = concat!("property not recognised. must be one of: ", $(concat!(stringify!($opname), " ")),*);
+                if meta.path.is_ident("only") {
+                    let attr: syn::Ident = meta.value()?.parse()?;
+                    let attr = attr.to_string();
+                    $(self.$ops = stringify!($opname) == &attr;)*
+                    if self.all_false() {
+                        return Err(meta.error(ERR));
+                    }
+                    return Ok(());
+                }
                 let value = if let Ok(v) = meta.value() {
                     v.parse::<syn::LitBool>()?.value
                 } else {
@@ -55,12 +65,22 @@ macro_rules! define_attrs {
                 }
                 $( else if meta.path.is_ident(stringify!($opname)) { self.$ops = value; } )*
                 else {
-                    return Err(meta.error("invalid argument"));
+                    return Err(meta.error(ERR));
                 }
                 Ok(())
             }
             pub fn all_false(&self) -> bool {
                 !(false $(|| self.$ops)*)
+            }
+
+            pub fn all_false_but_is(&self) -> bool {
+                if self.all_false() {
+                    false
+                } else {
+                    let mut me = self.clone();
+                    me.add_is = false;
+                    me.all_false()
+                }
             }
             fn add_scope(mut self, attrs: &[Attribute]) -> syn::Result<Self> {
                 for attr in attrs {
@@ -224,6 +244,12 @@ pub fn sumtype_attr(mut attrs: Attrs, input: syn::DeriveInput) -> TokenStream {
         }
         variant_names.push(variant.ident.clone());
         variants.push((attrs, variant.ident.clone()));
+        if attrs.all_false_but_is() {
+            variant_tys.push(syn::Type::Never(syn::TypeNever {
+                bang_token: Not::default(),
+            }));
+            continue;
+        }
         let Fields::Unnamed(f) = &variant.fields else {
             return syn::Error::new_spanned(variant, "must be single variant").to_compile_error();
         };
@@ -259,24 +285,22 @@ pub fn sumtype_attr(mut attrs: Attrs, input: syn::DeriveInput) -> TokenStream {
         |a| a.add_into,
         generate_conv_option(vis, None),
     );
-    let is_names = gen_names(
-        variants_zipped.iter(),
-        "is",
-        None,
-        |a| a.add_is,
-        |variants, _, names| {
+    let is_names = all_variant_matches
+        .iter()
+        .zip(lowercase_names.iter())
+        .filter(|(_, (a, _))| a.add_is)
+        .map(|(f, (_, name))| {
+            let name = format_ident!("is_{name}");
+            let case = f.match_pat();
             quote! {
-                #(
-                    #vis fn #names (&self) -> bool {
-                        match self {
-                            Self::#variants (v) => true,
-                            _ => false,
-                        }
+                #vis fn #name (&self) -> bool {
+                    match self {
+                        Self::#case => true,
+                        _ => false,
                     }
-                )*
+                }
             }
-        },
-    );
+        });
     let mut_as_names = gen_names(
         variants_zipped.iter(),
         "as",
@@ -397,9 +421,9 @@ pub fn sumtype_attr(mut attrs: Attrs, input: syn::DeriveInput) -> TokenStream {
             #mut_as_names
             #as_names
             #into_names
-            #is_names
             #try_as_impls
             #try_as_mut_impls
+            #(#is_names)*
         }
         #(#from_impls)*
     }
