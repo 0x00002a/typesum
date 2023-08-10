@@ -1,5 +1,7 @@
 #![doc = include_str!("../docs/README.md")]
 
+use std::marker::PhantomData;
+
 #[doc = include_str!("../docs/sumtype_attr.md")]
 #[cfg(feature = "sumtype")]
 pub use typesum_macros::sumtype;
@@ -27,16 +29,18 @@ extern crate self as typesum;
 /// assert_eq!(e.actual(), "B");
 /// assert_eq!(e.expected(), "I");
 /// ```
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
-pub struct TryIntoError {
+#[impl_tools::autoimpl(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
+pub struct TryIntoError<Source> {
+    discrim: PhantomData<Source>,
     source: &'static str,
     actual: &'static str,
     expected: &'static str,
 }
-impl TryIntoError {
+impl<Source> TryIntoError<Source> {
     /// Create a new `TryIntoError`
     pub fn new(source: &'static str, actual: &'static str, expected: &'static str) -> Self {
         Self {
+            discrim: PhantomData::default(),
             source,
             actual,
             expected,
@@ -63,7 +67,7 @@ impl TryIntoError {
         self.expected
     }
 }
-impl std::fmt::Display for TryIntoError {
+impl<S> std::fmt::Display for TryIntoError<S> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!(
             "sumtype '{}': variant '{}' expected but was '{}'",
@@ -71,7 +75,7 @@ impl std::fmt::Display for TryIntoError {
         ))
     }
 }
-impl std::error::Error for TryIntoError {}
+impl<S> std::error::Error for TryIntoError<S> {}
 
 #[cfg(test)]
 mod tests {

@@ -143,12 +143,13 @@ fn generate_conv_try<'a>(
     input_ident: &'a Ident,
     prefix: Option<TokenStream>,
     all_variants: &'a [FullVariant],
+    input_tys: &'a syn::Generics,
 ) -> impl FnOnce(&[&Ident], &[&syn::Type], &[Ident]) -> TokenStream + 'a {
     move |variants, tys, names| {
         let blocks = generate_try_match_blocks(variants, input_ident, all_variants);
         quote! {
             #(
-                #vis fn #names (#prefix self) -> Result<#prefix #tys, ::typesum::TryIntoError> {
+                #vis fn #names (#prefix self) -> ::core::result::Result<#prefix #tys, ::typesum::TryIntoError<#input_ident #input_tys>> {
                     #blocks
                 }
             )*
@@ -288,7 +289,7 @@ pub fn sumtype_attr(mut attrs: Attrs, input: syn::DeriveInput) -> TokenStream {
         "try_into",
         None,
         |a| a.add_try_into,
-        generate_conv_try(vis, input_ident, None, &all_variant_matches),
+        generate_conv_try(vis, input_ident, None, &all_variant_matches, &tys),
     );
 
     let try_as_impls = gen_names(
@@ -296,7 +297,13 @@ pub fn sumtype_attr(mut attrs: Attrs, input: syn::DeriveInput) -> TokenStream {
         "try_as",
         None,
         |a| a.add_try_as,
-        generate_conv_try(vis, input_ident, Some(quote! { & }), &all_variant_matches),
+        generate_conv_try(
+            vis,
+            input_ident,
+            Some(quote! { & }),
+            &all_variant_matches,
+            &tys,
+        ),
     );
 
     let try_as_mut_impls = gen_names(
@@ -309,6 +316,7 @@ pub fn sumtype_attr(mut attrs: Attrs, input: syn::DeriveInput) -> TokenStream {
             input_ident,
             Some(quote! { &mut }),
             &all_variant_matches,
+            &tys,
         ),
     );
     let try_intos = variants
@@ -332,7 +340,7 @@ pub fn sumtype_attr(mut attrs: Attrs, input: syn::DeriveInput) -> TokenStream {
     let from_impls = from_candidates.into_iter().map(|((_, _), (v, t))| {
         quote! {
            #[automatically_derived]
-           impl #tys From<#t> for #input_ident #tys {
+           impl #tys ::core::convert::From<#t> for #input_ident #tys {
                fn from(value: #t) -> Self {
                    Self::#v (value)
                }
@@ -366,9 +374,9 @@ pub fn sumtype_attr(mut attrs: Attrs, input: syn::DeriveInput) -> TokenStream {
             let failed = generate_failed_matches(&all_variant_matches, input_ident, &name);
             quote! {
                 #[automatically_derived]
-                impl #tys TryInto<#ty> for #input_ident #tys {
-                    type Error = ::typesum::TryIntoError;
-                    fn try_into(self) -> Result<#ty, Self::Error> {
+                impl #tys ::core::convert::TryInto<#ty> for #input_ident #tys {
+                    type Error = ::typesum::TryIntoError<#input_ident #tys>;
+                    fn try_into(self) -> ::core::result::Result<#ty, Self::Error> {
                         match self {
                             #(Self:: #idents (v) => Ok(v),)*
                             #failed
