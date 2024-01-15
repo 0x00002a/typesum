@@ -217,6 +217,8 @@ where
         );
     generate(as_.as_slice(), bs.as_slice(), is.as_slice())
 }
+const EXPLICITLY_DISABLE_FROM_MSG: &str = "You need to explicitly disable the ones you don't want with #[sumtype(from = false)]. See the docs on #[sumtype] for more information";
+
 pub fn sumtype_attr(mut attrs: Attrs, input: syn::DeriveInput) -> TokenStream {
     let syn::Data::Enum(data) = &input.data else {
         return syn::Error::new_spanned(&input, "sumtype can only act on enums").to_compile_error();
@@ -354,9 +356,27 @@ pub fn sumtype_attr(mut attrs: Attrs, input: syn::DeriveInput) -> TokenStream {
         .filter(|((a, _), _)| a.add_from_impl)
         .collect::<Vec<_>>();
     let mut seen_from = Vec::new();
+    let mut seen_generics = 0;
     for (_, (_, candidate)) in &from_candidates {
+        if let syn::Type::Path(p) = candidate {
+            if tys
+                .type_params()
+                .find(|t| p.path.is_ident(&t.ident))
+                .is_some()
+            {
+                seen_generics += 1;
+                if seen_generics > 1 {
+                    return syn::Error::new_spanned(candidate, format!("Multiple generic's with From implementations found, these will conflict. {EXPLICITLY_DISABLE_FROM_MSG}")).to_compile_error();
+                }
+            }
+        }
+
         if seen_from.contains(candidate) {
-            return syn::Error::new_spanned(candidate, "Multiple valid From candidates found. You need to explicitly disable the ones you don't want with #[sumtype(from = false)]. See the docs on #[sumtype] for more information").to_compile_error();
+            return syn::Error::new_spanned(
+                candidate,
+                "Multiple valid From candidates found. {EXPLICITLY_DISABLE_FROM_MSG}",
+            )
+            .to_compile_error();
         } else {
             seen_from.push(&candidate);
         }

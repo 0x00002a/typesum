@@ -14,7 +14,7 @@ readme = "docs/README.md"
 
 [dependencies]
 impl-tools = "0.9.0"
-typesum-macros = { version= "0.2.0", default_features = false }
+typesum-macros = { version= "0.2.1", default_features = false, path = "./typesum-macros" }
 
 [features]
 sumtype = ["typesum-macros/sumtype"]
